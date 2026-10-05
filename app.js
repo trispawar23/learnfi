@@ -594,9 +594,9 @@ function ovNetWorth() {
   $("#syncLine").textContent = `${bank.accounts.length} linked accounts · updated ${shortDate(today)} · demo data`;
   const sumKinds = (kinds) => bank.accounts.filter((a) => kinds.includes(a.kind)).reduce((s, a) => s + a.balance, 0);
   const assets = [
-    { label: "Cash & savings", value: sumKinds(["checking", "savings"]), color: "var(--s-needs)" },
-    { label: "Investments & retirement", value: sumKinds(["investment", "retirement"]), color: "var(--s-savings)" },
-    { label: "Other (car, home)", value: sum(state.manualAssets, "value"), color: "var(--s-cash)" },
+    { label: "Cash & savings", value: sumKinds(["checking", "savings"]), color: "var(--tone-1)" },
+    { label: "Investments & retirement", value: sumKinds(["investment", "retirement"]), color: "var(--tone-2)" },
+    { label: "Other (car, home)", value: sum(state.manualAssets, "value"), color: "var(--tone-3)" },
   ].filter((x) => x.value > 0);
   const debts = allDebts().filter((d) => num(d.balance) > 0).sort((a, b) => b.balance - a.balance)
     .map((d, i) => ({ label: d.name.replace(/ ••\d+$/, ""), value: num(d.balance), color: `var(--debt-${Math.min(i, 3) + 1})`, apr: d.apr }));
@@ -604,7 +604,7 @@ function ovNetWorth() {
   const bar = (title, total, segs) => `<div class="hbar-row"><span class="hbar-label">${title}<b>${money(total)}</b></span><div class="hbar" style="width:${(total / max) * 100}%">${segs.map((x) =>
     `<span style="flex:${x.value};background:${x.color}" ${tipAttr(`<strong>${esc(x.label)}</strong><br><b>${money(x.value)}</b>${x.apr ? ` · ${x.apr}% APR` : ""}`)}></span>`).join("")}</div></div>`;
   $("#ovBalance").innerHTML = bar("Own", bs.assets, assets) + bar("Owe", bs.debts, debts) +
-    legend([...assets.map((a) => ({ label: a.label, color: a.color })), { label: "Debts (darker = larger)", color: "var(--debt-1)" }]);
+    legend([...assets.map((a) => ({ label: a.label, color: a.color })), { label: "Debts (largest first)", color: "var(--debt-1)" }]);
 }
 
 function ovCashflow() {
@@ -665,7 +665,7 @@ function ovSpend() {
 
 function ovEmergency() {
   const t = totals(LAST_FULL), bs = balanceSheet(), months = t.needs ? bs.emergency / t.needs : 0;
-  const color = months >= 3 ? "var(--green)" : months >= 1 ? "var(--amber)" : "var(--red)";
+  const color = months >= 3 ? "var(--ok)" : months >= 1 ? "var(--warn)" : "var(--bad)";
   $("#ovEmergency").innerHTML = `<div class="ring-wrap">${ring(months / 6, { size: 140, thick: 14, color, marks: [0.5], center: `<b>${months.toFixed(1)}</b><span>of 6 months</span>`, tip: `<strong>Emergency fund</strong><br><b>${money(bs.emergency)}</b> covers ${months.toFixed(1)} months of needs (${money(t.needs)}/mo)` })}
     <p class="small center">${money(bs.emergency)} saved · <b>${money(Math.max(0, t.needs * 3 - bs.emergency))}</b> to 3 months</p></div>`;
 }
@@ -686,7 +686,7 @@ function ovCredit() {
     </svg><div class="gauge-num"><b>${score}</b><span>${band}</span></div></div>
     <div class="meter" ${tipAttr(`<strong>Card utilization</strong><br><b>${pct(util)}</b> of ${money(bs.cardLimit)} limit · aim under 30%`)}>
       <span class="meter-lbl">Card utilization <b>${pct(util)}</b></span>
-      <span class="meter-track"><span style="width:${Math.min(100, util * 100)}%;background:${util > 0.3 ? "var(--red)" : util > 0.1 ? "var(--amber)" : "var(--green)"}"></span><i style="left:30%"></i></span>
+      <span class="meter-track"><span style="width:${Math.min(100, util * 100)}%;background:${util > 0.3 ? "var(--bad)" : util > 0.1 ? "var(--warn)" : "var(--ok)"}"></span><i style="left:30%"></i></span>
     </div>`;
 }
 
@@ -710,8 +710,8 @@ function ovRunway() {
   svg += `<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join("")}" fill="none" stroke="var(--s-needs)" stroke-width="2"/>`;
   events.forEach((e, i) => {
     const income = e.amt > 0;
-    svg += `<line x1="${x(e.d)}" x2="${x(e.d)}" y1="${padT - 6}" y2="${H - padB}" stroke="${income ? "var(--green)" : "var(--line)"}" stroke-dasharray="${income ? "0" : "3 3"}"/>`;
-    svg += `<circle cx="${x(e.d)}" cy="${y(e.after)}" r="5" fill="${income ? "var(--green)" : "var(--s-needs)"}" stroke="var(--surface)" stroke-width="2" ${tipAttr(`<strong>${esc(e.label)}</strong> · ${shortDate(new Date(today.getTime() + e.d * 86400000))}<br>${income ? "+" : "−"}${cents(Math.abs(e.amt))} · balance after <b>${cents(e.after)}</b>`)}/>`;
+    svg += `<line x1="${x(e.d)}" x2="${x(e.d)}" y1="${padT - 6}" y2="${H - padB}" stroke="${income ? "var(--ok)" : "var(--line)"}" stroke-dasharray="${income ? "0" : "3 3"}"/>`;
+    svg += `<circle cx="${x(e.d)}" cy="${y(e.after)}" r="5" fill="${income ? "var(--ok)" : "var(--s-needs)"}" stroke="var(--surface)" stroke-width="2" ${tipAttr(`<strong>${esc(e.label)}</strong> · ${shortDate(new Date(today.getTime() + e.d * 86400000))}<br>${income ? "+" : "−"}${cents(Math.abs(e.amt))} · balance after <b>${cents(e.after)}</b>`)}/>`;
     svg += `<text x="${x(e.d)}" y="${padT - 10 - (i % 2) * 0}" text-anchor="middle" class="ev-label" style="fill:${income ? "var(--green)" : "var(--ink-2)"}">${income ? "Payday" : `−${money(Math.abs(e.amt))}`}</text>`;
   });
   for (let d = 0; d <= days; d += Math.max(1, Math.round(days / 6))) svg += `<text class="axis-label" x="${x(d)}" y="${H - 6}" text-anchor="middle">${d === 0 ? "Today" : shortDate(new Date(today.getTime() + d * 86400000))}</text>`;
@@ -728,7 +728,7 @@ function ovInvest() {
   const d = donut(segs, { size: 150, thick: 16, label: "Investment allocation", center: `<b>${compactUsd.format(p.total)}</b><span>invested</span>` });
   const meter = m ? `<div class="meter" ${tipAttr(`<strong>401(k) contribution</strong><br>You put in <b>${m.employeePct}%</b>; employer matches up to <b>${m.matchUpToPct}%</b>${m.missed > 0 ? `<br>Missing <b>${money(m.missed)}/yr</b>` : ""}`)}>
       <span class="meter-lbl">401(k) match <b>${m.employeePct}% of ${m.matchUpToPct}%</b></span>
-      <span class="meter-track"><span style="width:${(m.employeePct / (m.matchUpToPct + 1)) * 100}%;background:${m.employeePct >= m.matchUpToPct ? "var(--green)" : "var(--amber)"}"></span><i style="left:${(m.matchUpToPct / (m.matchUpToPct + 1)) * 100}%"></i></span>
+      <span class="meter-track"><span style="width:${(m.employeePct / (m.matchUpToPct + 1)) * 100}%;background:${m.employeePct >= m.matchUpToPct ? "var(--ok)" : "var(--warn)"}"></span><i style="left:${(m.matchUpToPct / (m.matchUpToPct + 1)) * 100}%"></i></span>
     </div>` : "";
   $("#ovInvest").innerHTML = `<div class="ring-wrap">${d}</div>${legend(Object.keys(CLASSES).filter((k) => p.byClass[k] > 0).map((k) => ({ label: CLASSES[k].label, color: CLASSES[k].color })))}${meter}`;
 }
@@ -739,7 +739,7 @@ function ovGoals() {
     const target = goalTarget(g), saved = goalSaved(g), f = saved / Math.max(1, target);
     const h = horizonOf(num(g.years)), need = requiredMonthly(target, saved, num(g.years), g.kind === "emergency" ? 0 : SAVINGS_GROWTH[h]);
     const tight = t.savings && need / t.savings > 0.6;
-    return `<div class="goal-ring">${ring(f, { size: 92, thick: 9, color: f >= 1 ? "var(--green)" : "var(--blue)", center: `<b>${pct(Math.min(1, f))}</b>`, tip: `<strong>${esc(g.name)}</strong><br>${money(saved)} of ${money(target)}<br>Needs <b>${money(need)}/mo</b> for ${fmtYears(num(g.years))}` })}
+    return `<div class="goal-ring">${ring(f, { size: 92, thick: 9, color: f >= 1 ? "var(--ok)" : "var(--blue)", center: `<b>${pct(Math.min(1, f))}</b>`, tip: `<strong>${esc(g.name)}</strong><br>${money(saved)} of ${money(target)}<br>Needs <b>${money(need)}/mo</b> for ${fmtYears(num(g.years))}` })}
       <span class="goal-name">${esc(g.name)}</span><span class="goal-sub">${money(target)} · ${fmtYears(num(g.years))}</span><span class="goal-sub ${tight ? "status warn" : ""}">${money(need)}/mo</span></div>`;
   }).join("") || `<p class="muted">No goals yet. Add one on the Goals tab.</p>`;
 }
@@ -753,7 +753,7 @@ function ovDebt() {
     const off = plan?.paidOff.find((p) => p.id === d.id)?.month;
     return `<li ${tipAttr(`<strong>${esc(d.name)}</strong><br><b>${money(d.balance)}</b> at ${d.apr}% APR${off ? `<br>Paid off in month ${off}` : ""}`)}>
       <span class="lbl">${esc(d.name.replace(/ ••\d+$/, ""))}<small>${d.apr}% APR</small></span>
-      <span class="track"><span style="width:${(num(d.balance) / max) * 100}%;background:${d.apr >= 10 ? "var(--red)" : "var(--debt-2)"}"></span></span>
+      <span class="track"><span style="width:${(num(d.balance) / max) * 100}%;background:${d.apr >= 10 ? "var(--bad)" : "var(--debt-2)"}"></span></span>
       <span class="amt">${money(d.balance)}</span>
       <span class="timeline"><span style="width:${off ? (off / months) * 100 : 100}%"></span><em>${off ? fmtMonths(off) : "–"}</em></span>
     </li>`;
@@ -828,8 +828,8 @@ function mascotSVG(mood, size = 120) {
     : `<g class="m-eyes"><ellipse cx="46" cy="54" rx="${mood === "alert" ? 4.6 : 4}" ry="${mood === "alert" ? 5.6 : 4.6}" class="m-face"/><ellipse cx="74" cy="54" rx="${mood === "alert" ? 4.6 : 4}" ry="${mood === "alert" ? 5.6 : 4.6}" class="m-face"/><circle cx="47.6" cy="52" r="1.4" fill="#fff"/><circle cx="75.6" cy="52" r="1.4" fill="#fff"/></g>`;
   const brows = mood === "worried" ? `<path d="M39 45 l12 -4" class="m-line thin"/><path d="M81 45 l-12 -4" class="m-line thin"/>` : mood === "alert" ? `<path d="M40 43 q6 -5 11 -1" class="m-line thin"/><path d="M80 43 q-6 -5 -11 -1" class="m-line thin"/>` : "";
   const mouth = mood === "happy" ? `<path d="M54 84 q6 6 12 0" class="m-line"/>` : mood === "worried" ? `<path d="M54 87 q6 -4 12 0" class="m-line"/>` : `<ellipse cx="60" cy="86" rx="3.6" ry="4.4" class="m-face"/>`;
-  const badge = mood === "worried" ? `<g class="m-badge"><circle cx="98" cy="22" r="11" fill="var(--amber)"/><path d="M98 16 v7" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="98" cy="28" r="1.8" fill="#fff"/></g>`
-    : mood === "alert" ? `<g class="m-badge"><circle cx="98" cy="22" r="12" fill="var(--red)"/><path d="M98 15 v8" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><circle cx="98" cy="29" r="2" fill="#fff"/></g>`
+  const badge = mood === "worried" ? `<g class="m-badge"><circle cx="98" cy="22" r="11" fill="var(--warn)"/><path d="M98 16 v7" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="98" cy="28" r="1.8" fill="#fff"/></g>`
+    : mood === "alert" ? `<g class="m-badge"><circle cx="98" cy="22" r="12" fill="var(--bad)"/><path d="M98 15 v8" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><circle cx="98" cy="29" r="2" fill="#fff"/></g>`
     : `<g class="m-coin"><circle cx="60" cy="14" r="9" fill="url(#${id}c)"/><path d="M60 9.5 v9" stroke="#b07a10" stroke-width="2" stroke-linecap="round"/></g>`;
   return `<svg class="mascot ${mood}" viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="Penny the piggy bank looks ${mood === "happy" ? "happy" : mood === "worried" ? "worried" : "alarmed"}">
     <defs>
@@ -853,7 +853,7 @@ function mascotSVG(mood, size = 120) {
 let bcIndex = 0;
 const bcMonth = () => (MONTHS.includes(state.bcMonth) ? state.bcMonth : currentYM);
 // Status colours are the only colours in the Limits view: on track, on pace to go over, over.
-const STATUS_COLOR = { ok: "var(--green)", pace: "var(--amber)", over: "var(--red)" };
+const STATUS_COLOR = { ok: "var(--ok)", pace: "var(--warn)", over: "var(--bad)" };
 
 function renderBudgetCheck() {
   const ym = bcMonth(), view = state.bcView || "limits", isCur = ym === currentYM;
@@ -923,7 +923,7 @@ function renderLimits() {
   const cur = Object.fromEntries(budgetStatus(currentYM).map((x) => [x.cat, x]));
   const last = Object.fromEntries(budgetStatus(LAST_FULL).map((x) => [x.cat, x]));
   const cats = Object.keys(CATS).filter((k) => ["needs", "wants"].includes(CATS[k].bucket));
-  const cell = (x) => !x ? `<span class="muted">–</span>` : `<span class="mini-track"><span style="width:${Math.min(100, (x.spent / Math.max(1, x.limit)) * 100)}%;background:${x.status === "over" ? "var(--red)" : x.status === "pace" ? "var(--amber)" : "var(--green)"}"></span></span> ${money(x.spent)}${x.status === "over" ? ` <span class="status bad">over ${money(x.over)}</span>` : x.status === "pace" ? ` <span class="status warn">on pace to go over</span>` : ""}`;
+  const cell = (x) => !x ? `<span class="muted">–</span>` : `<span class="mini-track"><span style="width:${Math.min(100, (x.spent / Math.max(1, x.limit)) * 100)}%;background:${x.status === "over" ? "var(--bad)" : x.status === "pace" ? "var(--warn)" : "var(--ok)"}"></span></span> ${money(x.spent)}${x.status === "over" ? ` <span class="status bad">over ${money(x.over)}</span>` : x.status === "pace" ? ` <span class="status warn">on pace to go over</span>` : ""}`;
   $("#limitsTable").innerHTML = `<thead><tr><th>Category</th><th>Type</th><th class="num">Monthly limit</th><th>${monthName(currentYM, "short")} so far</th><th>${monthName(LAST_FULL, "short")}</th></tr></thead><tbody>` +
     cats.map((k) => `<tr><td>${CATS[k].label}</td><td><span class="bucket b-${CATS[k].bucket}">${CATS[k].bucket === "needs" ? "Need" : "Want"}</span></td>
       <td class="num"><input type="number" min="0" step="10" data-limit="${k}" value="${limitOf(k)}" aria-label="Monthly limit for ${CATS[k].label}" style="text-align:right;max-width:110px"/></td>
@@ -1019,7 +1019,7 @@ function renderAccounts() {
       ["Minimum payment due", cents(sel.minPayment), `<span class="status ${Math.round((due - today) / 86400000) <= 5 ? "warn" : "good"}">Due ${shortDate(due)} · ${Math.round((due - today) / 86400000)} days</span>`],
       ["Pay in full to avoid interest", cents(sel.statementBalance), "Paying only the minimum keeps the 24.99% APR running"],
       ["Available credit", cents(sel.limit - sel.balance), `of ${money(sel.limit)} limit`],
-      ["Utilization", `<span class="mini-track"><span style="width:${Math.min(100, util * 100)}%;background:${util > 0.3 ? "var(--red)" : util > 0.1 ? "var(--amber)" : "var(--green)"}"></span></span> ${pct(util)}`, "Keep under 30% for your score"],
+      ["Utilization", `<span class="mini-track"><span style="width:${Math.min(100, util * 100)}%;background:${util > 0.3 ? "var(--bad)" : util > 0.1 ? "var(--warn)" : "var(--ok)"}"></span></span> ${pct(util)}`, "Keep under 30% for your score"],
       ["Purchase APR", `${sel.apr}%`, `Cash advance ${sel.cashAdvanceApr}%`],
       ["Last payment", lastPay ? cents(-lastPay.amount) : "–", lastPay ? `${shortDate(new Date(`${lastPay.date}T12:00:00`))} from Checking ••4821` : ""],
       ["Cash back", `${cents(earnedNow)} this month`, `${sel.cashBackPct}% on purchases · ${cents(earnedLast)} in ${monthName(LAST_FULL, "short")}`],
@@ -1108,9 +1108,9 @@ function renderActivity() {
   const cats = monthCategories(ym).filter((c) => ["needs", "wants", "unassigned"].includes(c.bucket));
   const max = Math.max(1, ...cats.map((c) => c.amount));
   $("#catBars").innerHTML = cats.map((c) => `<li><span class="lbl">${CATS[c.cat].label}</span>
-    <span class="track"><span style="width:${(c.amount / max * 100).toFixed(1)}%;background:${limitOf(c.cat) != null && c.amount > limitOf(c.cat) + 0.5 ? "var(--red)" : c.bucket === "needs" ? "var(--s-needs)" : c.bucket === "wants" ? "var(--s-wants)" : "var(--muted)"}"></span>${limitOf(c.cat) ? `<i class="lim" style="left:${Math.min(100, (limitOf(c.cat) / max) * 100)}%"></i>` : ""}</span>
+    <span class="track"><span style="width:${(c.amount / max * 100).toFixed(1)}%;background:${limitOf(c.cat) != null && c.amount > limitOf(c.cat) + 0.5 ? "var(--bad)" : c.bucket === "needs" ? "var(--s-needs)" : c.bucket === "wants" ? "var(--s-wants)" : "var(--muted)"}"></span>${limitOf(c.cat) ? `<i class="lim" style="left:${Math.min(100, (limitOf(c.cat) / max) * 100)}%"></i>` : ""}</span>
     <span class="amt">${money(c.amount)}</span></li>`).join("") +
-    `<li class="cat-legend"><span><i style="background:var(--s-needs)"></i>Need</span><span><i style="background:var(--s-wants)"></i>Want</span><span><i style="background:var(--red)"></i>Over limit</span><span><i class="tick-key"></i>Limit</span></li>`;
+    `<li class="cat-legend"><span><i style="background:var(--s-needs)"></i>Need</span><span><i style="background:var(--s-wants)"></i>Want</span><span><i style="background:var(--bad)"></i>Over limit</span><span><i class="tick-key"></i>Limit</span></li>`;
 }
 
 // ---------------------------------------------------------------- budget sheet (auto from transactions + manual lines)
@@ -1191,7 +1191,7 @@ function updateBalance() {
   $("#nwAssets").textContent = money(bs.assets);
   $("#nwLiabs").textContent = money(bs.debts);
   $("#nwTotal").textContent = money(bs.net);
-  $("#nwTotal").style.color = bs.net < 0 ? "var(--red)" : "var(--ink)";
+  $("#nwTotal").style.color = bs.net < 0 ? "var(--bad)" : "var(--ink)";
   const plan = payoffPlan(), other = payoffPlan(state.payoffMethod === "avalanche" ? "snowball" : "avalanche");
   const el = $("#payoffResult");
   if (!plan) el.innerHTML = `<p class="status good">No non-mortgage debt. Nice work.</p>`;
@@ -1294,10 +1294,10 @@ function renderQuizResult() {
 
 // ---------------------------------------------------------------- investments
 const CLASSES = {
-  us_stock: { label: "US stocks", color: "var(--s-needs)" },
-  intl_stock: { label: "International stocks", color: "var(--s-savings)" },
-  bonds: { label: "Bonds", color: "var(--s-wants)" },
-  cash: { label: "Cash & stable value", color: "var(--debt-2)" },
+  us_stock: { label: "US stocks", color: "var(--tone-1)", ink: "#fff" },
+  intl_stock: { label: "International stocks", color: "var(--tone-2)", ink: "#fff" },
+  bonds: { label: "Bonds", color: "var(--tone-3)", ink: "var(--ink)" },
+  cash: { label: "Cash & stable value", color: "var(--debt-2)", ink: "#fff" },
 };
 const classOf = (h) => (h.cls === "single_stock" ? "us_stock" : h.cls);
 const PROFILES = {
@@ -1408,7 +1408,7 @@ function renderAllocChart(p, target) {
       const w = r.share[k] * barW;
       if (w <= 0) return;
       svg += `<rect x="${x}" y="${y}" width="${Math.max(0, w - 2)}" height="${bh}" rx="3" fill="${CLASSES[k].color}" data-alloc="${i}:${k}"/>`;
-      if (w > 44) svg += `<text x="${x + w / 2 - 1}" y="${y + bh / 2 + 4}" text-anchor="middle" style="fill:#fff;font-weight:600;pointer-events:none">${pct(r.share[k])}</text>`;
+      if (w > 44) svg += `<text x="${x + w / 2 - 1}" y="${y + bh / 2 + 4}" text-anchor="middle" style="fill:${CLASSES[k].ink};font-weight:600;pointer-events:none">${pct(r.share[k])}</text>`;
       x += w;
     });
   });
