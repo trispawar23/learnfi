@@ -6,7 +6,7 @@
   <title>LearnFi Wealth</title>
   <meta name="description" content="Money-management features for a consumer banking app: auto-built budget, net worth, debt, mortgage, goals and an AI assistant." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,6 +17,7 @@
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="accounts">Accounts</button>
       <button role="tab" data-tab="activity">Activity</button>
       <button role="tab" data-tab="budget">Budget</button>
       <button role="tab" data-tab="networth">Net Worth</button>
@@ -47,6 +48,10 @@
             <ul class="limit-bars" id="bcBars"></ul>
             <p class="muted small">Bars show spending against your limit; the tick marks where you'd expect to be by today. <button class="btn link" data-goto="budget">Edit limits →</button></p>
           </div>
+        </div>
+        <div class="card span-4">
+          <div class="card-head"><h2>Accounts &amp; cards</h2><button class="btn link" data-goto="accounts">Card details →</button></div>
+          <div class="mini-accounts" id="ovAccounts"></div>
         </div>
         <div class="card ov-networth span-2">
           <div class="card-head">
@@ -102,6 +107,37 @@
           <div class="card-head"><h2>Biggest opportunities</h2><button class="btn link" data-goto="goals">All advice →</button></div>
           <div id="ovActions" class="action-tiles"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ ACCOUNTS & CARDS ============ -->
+    <section id="tab-accounts" class="tab-panel" role="tabpanel" hidden>
+      <div class="card-picker" id="cardPicker" role="tablist" aria-label="Cards"></div>
+      <div class="grid-2">
+        <div class="stack">
+          <div class="card card-stage">
+            <div id="cardVisual"></div>
+            <div class="card-actions" id="cardActions"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Card controls</h2><span class="tag">Demo</span></div>
+            <ul class="controls" id="cardControls"></ul>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2 id="cardDetailsTitle">Card details</h2></div>
+            <dl class="details" id="cardDetails"></dl>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Recent card activity</h2><button class="btn link" data-goto="activity">All activity →</button></div>
+            <ul class="recent-tx" id="cardRecent"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>All accounts</h2><span class="muted small">Balances as of today</span></div>
+        <div class="table-wrap plain"><table class="data-table acct-table" id="acctTable"></table></div>
       </div>
     </section>
 

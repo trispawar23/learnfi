@@ -29,6 +29,7 @@ Swap `LearnFiBank.load()` for real API calls and the rest of the app works uncha
 | Tab | What the customer gets |
 | --- | --- |
 | **Overview** | All charts: **Budget check** with Penny the piggy-bank mascot (happy / worried / alarmed) flagging every category that's over its limit or on pace to go over, net worth (own vs owe), monthly income vs needs/wants/savings, 50/30/20 donut, top spending categories, emergency-fund ring, credit-score gauge with utilization, checking balance until payday, investment mix with 401(k) match meter, goal rings, debt payoff bars, and the biggest opportunities in dollars |
+| **Accounts** | Debit and credit card visuals (masked number, cardholder, expiry), credit card details (current and statement balance, minimum due and due date, available credit, utilization, APRs, last payment, cash back), card controls (lock, online, international, large-purchase alerts), recent card activity, and every account with its number, balance and rate |
 | **Activity** | Transactions with editable categories (applies to every charge from that merchant), auto-detected bills and subscriptions with price-increase alerts, spending by category, **AI categorization** for merchants the bank couldn't categorize |
 | **Budget** | The paper worksheet (Income, Needs 50%, Wants 30%, Savings 20%, Monthly summary), filled automatically from categorized transactions for any month, with over-limit rows flagged. Editable monthly **spending limits** per category, showing this month and last month against each. Click a row to see its transactions; add cash items by hand |
 | **Net Worth & Debt** | Linked assets and liabilities plus manual items (car, debts held elsewhere), avalanche vs snowball payoff using real APRs and minimums, credit score and utilization |
@@ -49,7 +50,7 @@ Swap `LearnFiBank.load()` for real API calls and the rest of the app works uncha
 ## Files
 
 - `index.html`: layout and tabs
-- `styles.css`: bank-style navy/blue theme, worksheet styling, responsive layout
+- `styles.css`: modern light/dark theme (frosted header, pill tabs, soft cards), worksheet styling, Penny's animations, responsive layout
 - `data.js`: demo bank feed (accounts and ~3 months of transactions)
 - `app.js`: categorization, budget, recurring-bill detection, advisor rules, charts, AI assistant
 

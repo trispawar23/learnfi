@@ -7,7 +7,8 @@
 //               investment/retirement accounts add holdings: [{ name, cls: us_stock|intl_stock|bonds|cash|single_stock, value, er (expense ratio %) }]
 //               and a 401(k) adds contribution: { employeePct, matchRate, matchUpToPct }
 // transactions: { id, date: "YYYY-MM-DD", account, merchant, amount (+ in / − out), category|null, transfer }
-// profile:      { age, grossSalary } (from the customer's profile and payroll deposits)
+// profile:      { age, grossSalary, fullName }
+//               payment cards: account.card = { type: debit|credit, last4, expiry }; credit accounts add statementBalance, statementDay, cashBackPct (from the customer's profile and payroll deposits)
 (function () {
   function rng(seed) {
     return function () {
@@ -21,10 +22,13 @@
 
   function load(today = new Date()) {
     const accounts = [
-      { id: "chk", name: "Everyday Checking", mask: "4821", kind: "checking", balance: 1240.18, apy: 0.01 },
+      { id: "chk", name: "Everyday Checking", mask: "4821", kind: "checking", balance: 1240.18, available: 1240.18, apy: 0.01, opened: "2021-06-14",
+        card: { type: "debit", last4: "7765", expiry: "11/28", dailyLimit: 2500 } },
       { id: "sav", name: "High-Yield Savings", mask: "7710", kind: "savings", role: "emergency", balance: 3000, apy: 4.0 },
       { id: "bucket", name: "Laptop savings bucket", mask: "7711", kind: "savings", balance: 300, apy: 4.0 },
-      { id: "card", name: "Rewards Credit Card", mask: "3392", kind: "credit", balance: 2412.55, limit: 6000, apr: 24.99, minPayment: 75, dueDay: 26 },
+      { id: "card", name: "Rewards Credit Card", mask: "3392", kind: "credit", balance: 2412.55, limit: 6000, apr: 24.99, cashAdvanceApr: 29.99, minPayment: 75, dueDay: 26,
+        statementBalance: 2368.4, statementDay: 28, cashBackPct: 1.5, opened: "2022-02-03",
+        card: { type: "credit", last4: "3392", expiry: "08/29" } },
       { id: "auto", name: "Auto Loan", mask: "5520", kind: "loan", debtType: "auto", balance: 9000, apr: 7.5, minPayment: 250 },
       { id: "student", name: "Student Loan", mask: "0912", kind: "loan", debtType: "student", balance: 18000, apr: 5.5, minPayment: 200, external: true },
       { id: "ira", name: "Roth IRA", mask: "6604", kind: "investment", balance: 4200, holdings: [
@@ -91,7 +95,7 @@
       add(26, "chk", "PAYMENT TO CREDIT CARD ••3392", -between(480, 560), "card_payment", true);
     }
     transactions.sort((a, b) => b.date.localeCompare(a.date) || Number(b.id.slice(1)) - Number(a.id.slice(1)));
-    return { accounts, transactions, creditScore: 680, profile: { age: 27, grossSalary: 52000 }, asOf: today };
+    return { accounts, transactions, creditScore: 680, profile: { age: 27, grossSalary: 52000, fullName: "Alex Rivera" }, asOf: today };
   }
 
   window.LearnFiBank = { load };

@@ -57,6 +57,8 @@ function defaultState() {
     horizon: "all",
     budgetMonth: null,
     limits: {},
+    cardControls: {},
+    selectedCard: null,
     bcMonth: null,
     invest: { age: bank.profile.age, retireAge: 65, ret: 6, profile: null },
     feeCalc: { amount: null, monthly: null, years: null },
@@ -770,7 +772,7 @@ function ovActions() {
 }
 
 function renderOverview() {
-  renderBudgetCheck(); ovNetWorth(); ovCashflow(); ovSplit(); ovSpend(); ovEmergency(); ovCredit(); ovRunway(); ovInvest(); ovGoals(); ovDebt(); ovActions();
+  renderBudgetCheck(); renderOvAccounts(); ovNetWorth(); ovCashflow(); ovSplit(); ovSpend(); ovEmergency(); ovCredit(); ovRunway(); ovInvest(); ovGoals(); ovDebt(); ovActions();
 }
 
 // Shared hover tooltip for any element with data-tip.
@@ -816,26 +818,35 @@ function budgetFlags(ym) {
   return { st, flags, mood: flags.some((f) => f.level === "over") ? "alert" : flags.length ? "worried" : "happy" };
 }
 
-// Mascot: Penny the piggy bank. Mood sets the face and the animation.
+// Mascot: Penny, a flat piggy bank drawn in the app's blue palette. Mood sets the face, badge and motion.
+let mascotSeq = 0;
 function mascotSVG(mood, size = 120) {
+  const id = `pg${++mascotSeq}`;
   const eyes = mood === "happy"
-    ? `<path d="M40 52 q5 -6 10 0" class="m-stroke"/><path d="M70 52 q5 -6 10 0" class="m-stroke"/>`
-    : `<g class="m-eyes"><circle cx="45" cy="52" r="${mood === "alert" ? 5.5 : 4.5}" class="m-ink"/><circle cx="75" cy="52" r="${mood === "alert" ? 5.5 : 4.5}" class="m-ink"/><circle cx="46.5" cy="50.5" r="1.5" fill="#fff"/><circle cx="76.5" cy="50.5" r="1.5" fill="#fff"/></g>`;
-  const brows = mood === "worried" ? `<path d="M38 45 l12 -5" class="m-stroke"/><path d="M82 45 l-12 -5" class="m-stroke"/>` : mood === "alert" ? `<path d="M38 41 q6 -6 12 -1" class="m-stroke"/><path d="M82 41 q-6 -6 -12 -1" class="m-stroke"/>` : "";
-  const mouth = mood === "happy" ? `<path d="M52 82 q8 8 16 0" class="m-stroke"/>` : mood === "worried" ? `<path d="M52 85 q8 -6 16 0" class="m-stroke"/>` : `<ellipse cx="60" cy="85" rx="5" ry="6" class="m-ink"/>`;
-  const extra = mood === "worried" ? `<path class="m-sweat" d="M88 34 q4 7 0 10 q-4 -3 0 -10z" fill="#7cc4f2"/>`
-    : mood === "alert" ? `<g class="m-bang"><circle cx="100" cy="18" r="12" fill="var(--red)"/><text x="100" y="24" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">!</text></g>`
-    : `<g class="m-spark"><path d="M100 14 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z" fill="#f6c343"/></g>`;
+    ? `<path d="M41 55 q5 -5 10 0" class="m-line"/><path d="M69 55 q5 -5 10 0" class="m-line"/>`
+    : `<g class="m-eyes"><ellipse cx="46" cy="54" rx="${mood === "alert" ? 4.6 : 4}" ry="${mood === "alert" ? 5.6 : 4.6}" class="m-face"/><ellipse cx="74" cy="54" rx="${mood === "alert" ? 4.6 : 4}" ry="${mood === "alert" ? 5.6 : 4.6}" class="m-face"/><circle cx="47.6" cy="52" r="1.4" fill="#fff"/><circle cx="75.6" cy="52" r="1.4" fill="#fff"/></g>`;
+  const brows = mood === "worried" ? `<path d="M39 45 l12 -4" class="m-line thin"/><path d="M81 45 l-12 -4" class="m-line thin"/>` : mood === "alert" ? `<path d="M40 43 q6 -5 11 -1" class="m-line thin"/><path d="M80 43 q-6 -5 -11 -1" class="m-line thin"/>` : "";
+  const mouth = mood === "happy" ? `<path d="M54 84 q6 6 12 0" class="m-line"/>` : mood === "worried" ? `<path d="M54 87 q6 -4 12 0" class="m-line"/>` : `<ellipse cx="60" cy="86" rx="3.6" ry="4.4" class="m-face"/>`;
+  const badge = mood === "worried" ? `<g class="m-badge"><circle cx="98" cy="22" r="11" fill="var(--amber)"/><path d="M98 16 v7" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="98" cy="28" r="1.8" fill="#fff"/></g>`
+    : mood === "alert" ? `<g class="m-badge"><circle cx="98" cy="22" r="12" fill="var(--red)"/><path d="M98 15 v8" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><circle cx="98" cy="29" r="2" fill="#fff"/></g>`
+    : `<g class="m-coin"><circle cx="60" cy="14" r="9" fill="url(#${id}c)"/><path d="M60 9.5 v9" stroke="#b07a10" stroke-width="2" stroke-linecap="round"/></g>`;
   return `<svg class="mascot ${mood}" viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="Penny the piggy bank looks ${mood === "happy" ? "happy" : mood === "worried" ? "worried" : "alarmed"}">
+    <defs>
+      <linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--mascot-1)"/><stop offset="1" stop-color="var(--mascot-2)"/></linearGradient>
+      <linearGradient id="${id}c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#f2b632"/></linearGradient>
+    </defs>
+    <ellipse cx="60" cy="112" rx="30" ry="4" class="m-shadow"/>
     <g class="m-body">
-      <path d="M33 30 l6 -16 12 12z" class="m-pink m-ear"/><path d="M87 30 l-6 -16 -12 12z" class="m-pink m-ear"/>
-      <ellipse cx="60" cy="64" rx="42" ry="38" class="m-pink"/>
-      <rect x="50" y="27" width="20" height="4" rx="2" class="m-slot"/>
-      <ellipse cx="60" cy="70" rx="14" ry="10" class="m-snout"/><circle cx="55" cy="70" r="2.6" class="m-ink"/><circle cx="65" cy="70" r="2.6" class="m-ink"/>
-      ${eyes}${brows}${mouth}
-      <ellipse cx="30" cy="70" rx="6" ry="4" fill="#f7a1b5" opacity=".7"/><ellipse cx="90" cy="70" rx="6" ry="4" fill="#f7a1b5" opacity=".7"/>
-      <rect x="36" y="96" width="12" height="12" rx="4" class="m-pink"/><rect x="72" y="96" width="12" height="12" rx="4" class="m-pink"/>
-    </g>${extra}</svg>`;
+      <path d="M32 40 q-2 -18 12 -16 q4 6 2 14z" fill="url(#${id}b)"/><path d="M88 40 q2 -18 -12 -16 q-4 6 -2 14z" fill="url(#${id}b)"/>
+      <rect x="38" y="92" width="13" height="16" rx="6.5" fill="var(--mascot-2)"/><rect x="69" y="92" width="13" height="16" rx="6.5" fill="var(--mascot-2)"/>
+      <circle cx="60" cy="64" r="40" fill="url(#${id}b)"/>
+      <ellipse cx="46" cy="40" rx="14" ry="8" fill="#fff" opacity=".22" transform="rotate(-25 46 40)"/>
+      <rect x="51" y="27" width="18" height="4" rx="2" fill="var(--mascot-face)" opacity=".35"/>
+      ${eyes}${brows}
+      <ellipse cx="60" cy="71" rx="12" ry="8.5" fill="var(--mascot-snout)"/><ellipse cx="55.5" cy="71" rx="2" ry="2.6" class="m-face" opacity=".7"/><ellipse cx="64.5" cy="71" rx="2" ry="2.6" class="m-face" opacity=".7"/>
+      <circle cx="34" cy="70" r="5" fill="#ff9fb8" opacity=".55"/><circle cx="86" cy="70" r="5" fill="#ff9fb8" opacity=".55"/>
+      ${mouth}
+    </g>${badge}</svg>`;
 }
 
 let bcIndex = 0;
@@ -902,6 +913,112 @@ $("#toastClose").addEventListener("click", () => { $("#mascotToast").hidden = tr
 $("#toastGo").addEventListener("click", () => { $("#mascotToast").hidden = true; selectTab("overview"); renderBudgetCheck(); $("#budgetCheck").scrollIntoView({ behavior: "smooth", block: "center" }); });
 
 const KIND_LABEL = { checking: "Checking", savings: "Savings", credit: "Credit card", loan: "Loan", investment: "Investment", retirement: "Retirement" };
+
+// ---------------------------------------------------------------- accounts & cards
+const cardAccounts = () => bank.accounts.filter((a) => a.card);
+const cardSpend = (a, ym) => -bank.transactions.filter((t) => t.account === a.id && t.date.startsWith(ym) && t.amount < 0 && !t.transfer && catOf(t) !== "fees_interest").reduce((s, t) => s + t.amount, 0);
+function nextDue(a) {
+  const d = new Date(today.getFullYear(), today.getMonth(), a.dueDay);
+  if (d < today) d.setMonth(d.getMonth() + 1);
+  return d;
+}
+const ctrl = (id) => (state.cardControls[id] ||= { locked: false, online: true, intl: false, alerts: true, alertAmount: 100 });
+
+function cardFace(a, size = "full") {
+  const c = a.card, locked = ctrl(a.id).locked;
+  return `<div class="pay-card ${c.type} ${size} ${locked ? "locked" : ""}" aria-label="${esc(a.name)} ending ${c.last4}${locked ? ", locked" : ""}">
+    <div class="pc-top"><span class="pc-brand">LearnFi</span><span class="pc-type">${c.type === "credit" ? "Rewards Credit" : "Debit"}</span></div>
+    <div class="pc-chip" aria-hidden="true"></div>
+    <svg class="pc-contactless" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7a8 8 0 0 1 0 10M12 5a11 11 0 0 1 0 14M16 3a14 14 0 0 1 0 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <div class="pc-number">•••• •••• •••• ${c.last4}</div>
+    <div class="pc-bottom"><span><small>Cardholder</small>${esc(bank.profile.fullName.toUpperCase())}</span><span><small>Expires</small>${c.expiry}</span><span class="pc-network" aria-hidden="true"><i></i><i></i></span></div>
+    ${locked ? `<div class="pc-lock">Locked</div>` : ""}
+  </div>`;
+}
+
+function renderOvAccounts() {
+  $("#ovAccounts").innerHTML = bank.accounts.map((a) => {
+    const debt = a.kind === "credit" || a.kind === "loan";
+    const sub = a.kind === "credit" ? `${money(a.limit - a.balance)} available` : a.kind === "loan" ? `${a.apr}% APR` : a.apy ? `${a.apy}% APY` : KIND_LABEL[a.kind];
+    if (a.card) return `<button class="mini-card ${a.card.type}" data-open-card="${a.id}" ${tipAttr(`<strong>${esc(a.name)}</strong><br>Card ending ${a.card.last4} · ${ctrl(a.id).locked ? "locked" : "active"}`)}>
+      <span class="mc-top">${a.card.type === "credit" ? "Credit" : "Debit"} ••${a.card.last4}${ctrl(a.id).locked ? " · locked" : ""}</span>
+      <span class="mc-bal">${debt ? "−" : ""}${cents(a.balance)}</span><span class="mc-sub">${esc(a.name)} · ${sub}</span></button>`;
+    return `<div class="mini-acct ${debt ? "debt" : ""}"><span class="mc-top">${KIND_LABEL[a.kind]} ••${a.mask}</span><span class="mc-bal">${debt ? "−" : ""}${cents(a.balance)}</span><span class="mc-sub">${esc(a.name)} · ${sub}</span></div>`;
+  }).join("");
+}
+
+function renderAccounts() {
+  const cards = cardAccounts();
+  const sel = cards.find((a) => a.id === state.selectedCard) || cards.find((a) => a.card.type === "credit") || cards[0];
+  state.selectedCard = sel.id;
+  $("#cardPicker").innerHTML = cards.map((a) => `<button role="tab" aria-selected="${a.id === sel.id}" data-card="${a.id}">${cardFace(a, "thumb")}<span>${esc(a.name)} ••${a.card.last4}</span></button>`).join("");
+  $("#cardVisual").innerHTML = cardFace(sel);
+  const c = ctrl(sel.id);
+  $("#cardActions").innerHTML = `<button class="btn ${c.locked ? "primary" : "secondary"}" data-ctrl="locked">${c.locked ? "Unlock card" : "Lock card"}</button>
+    ${sel.card.type === "credit" ? `<button class="btn secondary" data-goto="networth">Payoff plan</button>` : ""}
+    <button class="btn secondary" data-report>Report lost or stolen</button>`;
+  $("#cardControls").innerHTML = [
+    ["locked", "Lock card", "Blocks new purchases and withdrawals. Recurring bills keep working."],
+    ["online", "Online purchases", "Allow purchases on websites and in apps."],
+    ["intl", "International use", "Allow purchases outside the US. Turn on before you travel."],
+    ["alerts", `Alert me for purchases over ${money(c.alertAmount)}`, "Get a notification right after a large purchase."],
+  ].map(([k, label, help]) => `<li><span><strong>${label}</strong><small>${help}</small></span>
+    <button class="switch" role="switch" aria-checked="${!!c[k]}" data-ctrl="${k}" aria-label="${label}"><i></i></button></li>`).join("");
+
+  const ym = currentYM, rows = [];
+  if (sel.card.type === "credit") {
+    const due = nextDue(sel), lastPay = bank.transactions.find((t) => catOf(t) === "card_payment");
+    const util = sel.balance / sel.limit, earnedNow = cardSpend(sel, ym) * sel.cashBackPct / 100, earnedLast = cardSpend(sel, LAST_FULL) * sel.cashBackPct / 100;
+    $("#cardDetailsTitle").textContent = `${sel.name} ••${sel.card.last4}`;
+    rows.push(
+      ["Current balance", cents(sel.balance), ""],
+      ["Statement balance", cents(sel.statementBalance), `Closed ${shortDate(new Date(today.getFullYear(), today.getMonth() - (today.getDate() < sel.statementDay ? 1 : 0), sel.statementDay))}`],
+      ["Minimum payment due", cents(sel.minPayment), `<span class="status ${Math.round((due - today) / 86400000) <= 5 ? "warn" : "good"}">Due ${shortDate(due)} · ${Math.round((due - today) / 86400000)} days</span>`],
+      ["Pay in full to avoid interest", cents(sel.statementBalance), "Paying only the minimum keeps the 24.99% APR running"],
+      ["Available credit", cents(sel.limit - sel.balance), `of ${money(sel.limit)} limit`],
+      ["Utilization", `<span class="mini-track"><span style="width:${Math.min(100, util * 100)}%;background:${util > 0.3 ? "var(--red)" : util > 0.1 ? "var(--amber)" : "var(--green)"}"></span></span> ${pct(util)}`, "Keep under 30% for your score"],
+      ["Purchase APR", `${sel.apr}%`, `Cash advance ${sel.cashAdvanceApr}%`],
+      ["Last payment", lastPay ? cents(-lastPay.amount) : "–", lastPay ? `${shortDate(new Date(`${lastPay.date}T12:00:00`))} from Checking ••4821` : ""],
+      ["Cash back", `${cents(earnedNow)} this month`, `${sel.cashBackPct}% on purchases · ${cents(earnedLast)} in ${monthName(LAST_FULL, "short")}`],
+      ["Card ending", sel.card.last4, `Expires ${sel.card.expiry} · opened ${shortDate(new Date(`${sel.opened}T12:00:00`))}, ${sel.opened.slice(0, 4)}`],
+    );
+  } else {
+    const spent = cardSpend(sel, ym);
+    $("#cardDetailsTitle").textContent = `Debit card ••${sel.card.last4}`;
+    rows.push(
+      ["Linked account", `${esc(sel.name)} ••${sel.mask}`, ""],
+      ["Available balance", cents(sel.available ?? sel.balance), `Current ${cents(sel.balance)}`],
+      ["Spent with card this month", cents(spent), ""],
+      ["Daily purchase limit", money(sel.card.dailyLimit), "ATM withdrawals up to $500/day"],
+      ["Card ending", sel.card.last4, `Expires ${sel.card.expiry}`],
+      ["Account opened", shortDate(new Date(`${sel.opened}T12:00:00`)) + `, ${sel.opened.slice(0, 4)}`, ""],
+    );
+  }
+  $("#cardDetails").innerHTML = rows.map(([k, v, sub]) => `<div><dt>${k}</dt><dd><b>${v}</b>${sub ? `<small>${sub}</small>` : ""}</dd></div>`).join("");
+  const recent = bank.transactions.filter((t) => t.account === sel.id).slice(0, 8);
+  $("#cardRecent").innerHTML = recent.map((t) => `<li><span class="date">${shortDate(new Date(`${t.date}T12:00:00`))}</span><span class="who">${esc(titleCase(t.merchant))}<small>${CATS[catOf(t)].label}</small></span><span class="amt ${t.amount > 0 ? "in" : ""}">${t.amount > 0 ? "+" : "−"}${cents(Math.abs(t.amount))}</span></li>`).join("") || `<li class="muted">No recent activity.</li>`;
+
+  $("#acctTable").innerHTML = `<thead><tr><th>Account</th><th>Type</th><th>Number</th><th class="num">Balance</th><th>Details</th></tr></thead><tbody>` + bank.accounts.map((a) => {
+    const debt = a.kind === "credit" || a.kind === "loan";
+    const det = a.kind === "credit" ? `${a.apr}% APR · ${money(a.limit - a.balance)} available · due ${shortDate(nextDue(a))}`
+      : a.kind === "loan" ? `${a.apr}% APR · ${money(a.minPayment)}/mo${a.external ? " · held elsewhere" : ""}`
+      : a.apy ? `${a.apy}% APY · earns about ${cents((a.balance * a.apy) / 100 / 12)}/mo${a.role === "emergency" ? " · emergency fund" : ""}`
+      : a.holdings ? `${a.holdings.length} holdings${a.external ? " · held elsewhere" : ""}` : "";
+    return `<tr><td><strong>${esc(a.name)}</strong></td><td>${KIND_LABEL[a.kind]}</td><td>••${a.mask}${a.card ? ` · card ••${a.card.last4}` : ""}</td><td class="num">${debt ? "−" : ""}${cents(a.balance)}</td><td class="small">${det}</td></tr>`;
+  }).join("") + `</tbody>`;
+}
+
+$("#tab-accounts").addEventListener("click", (e) => {
+  const pick = e.target.closest("[data-card]");
+  if (pick) { state.selectedCard = pick.dataset.card; save(); renderAccounts(); return; }
+  const t = e.target.closest("[data-ctrl]");
+  if (t) { const c = ctrl(state.selectedCard); c[t.dataset.ctrl] = !c[t.dataset.ctrl]; save(); renderAccounts(); renderOvAccounts(); return; }
+  if (e.target.closest("[data-report]")) {
+    const c = ctrl(state.selectedCard); c.locked = true; save(); renderAccounts(); renderOvAccounts();
+    $("#cardActions").insertAdjacentHTML("beforeend", `<p class="small" style="flex-basis:100%;margin:6px 0 0"><span class="status warn">Card locked.</span> In the real app this would start a replacement card. Demo only.</p>`);
+  }
+});
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-open-card]"); if (b) { state.selectedCard = b.dataset.openCard; save(); renderAccounts(); selectTab("accounts"); } });
 
 // ---------------------------------------------------------------- activity
 function monthOptions(sel, value, includeAll) {
@@ -1759,6 +1876,7 @@ function renderMarkdown(md) {
 
 // ---------------------------------------------------------------- boot
 function renderAll() {
+  renderAccounts();
   monthOptions($("#txMonth"), LAST_FULL, true);
   renderActivity();
   renderBudget();
