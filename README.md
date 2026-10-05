@@ -1,6 +1,6 @@
 # LearnFi Wealth (prototype)
 
-A static wealth-management prototype that turns the core ideas from Khan Academy's free Financial Literacy course into an interactive dashboard. You enter your income, budget, assets, debts and goals, and a built-in advisor ranks what to do next.
+Money-management features for a consumer banking app, built on the core ideas from Khan Academy's free Financial Literacy course. Balances and transactions come from the customer's accounts; the app turns them into a budget, net worth, debt plan, goals and ranked advice, with an AI assistant on top.
 
 ## Run it
 
@@ -11,37 +11,43 @@ python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-Opening `index.html` directly also works in most browsers. Everything is stored in your browser's `localStorage`. **Reset sample** restores the demo data.
+Opening `index.html` directly also works in most browsers. The customer's edits (category changes, manual lines, goals) are stored in `localStorage`. **Reset demo** clears them.
+
+## How it plugs into a banking app
+
+Everything starts from the bank's own data. `data.js` stands in for the bank's account and transaction APIs and returns:
+
+- **accounts**: checking, savings buckets, credit card (limit, APR, minimum), loans, investment and retirement accounts, each with a balance
+- **transactions**: date, merchant, amount, account and the bank's category (or none)
+- **credit score**
+
+Swap `LearnFiBank.load()` for real API calls and the rest of the app works unchanged. Users can override a merchant's category and add cash lines; those edits are stored on top of the feed.
 
 ## What's inside
 
-| Tab | Course concepts |
+| Tab | What the customer gets |
 | --- | --- |
-| **Overview** | Net worth, take-home income, savings rate, emergency-fund months, total debt, estimated mortgage, credit score, the 50/30/20 check and the top advice |
-| **Monthly Budget** | Copies the paper worksheet: *Month of*, Income, Needs (50%), Wants (30%), Savings (20%) and a Monthly summary, with live targets |
-| **Net Worth & Debt** | Assets − liabilities, debt payoff by avalanche or snowball (month-by-month simulation), credit score bands and utilization, and the five score factors |
-| **Mortgage** | Payment calculator (P&I, tax, insurance, PMI warning, share of take-home) and the course's year-one rent-vs-buy comparison |
-| **Goals & Advisor** | SMART goals with presets (emergency fund, laptop, college, home, retirement, pay off a card), the money-personality quiz, advice filtered by short / medium / long term, and the Miguel vs Jasmine compound-interest chart |
+| **Overview** | Linked account balances, net worth, last month's income, savings and 50/30/20 split, emergency-fund months, credit score, bills due before the next paycheck with projected checking balance, top advice |
+| **Activity** | Transactions with editable categories (applies to every charge from that merchant), auto-detected bills and subscriptions with price-increase alerts, spending by category, **AI categorization** for merchants the bank couldn't categorize |
+| **Monthly Budget** | The paper worksheet (Income, Needs 50%, Wants 30%, Savings 20%, Monthly summary), filled automatically from categorized transactions for any month. Click a row to see its transactions; add cash items by hand |
+| **Net Worth & Debt** | Linked assets and liabilities plus manual items (car, debts held elsewhere), avalanche vs snowball payoff using real APRs and minimums, credit score and utilization |
+| **Mortgage** | Payment calculator and the course's rent-vs-buy comparison, using the rent detected in checking |
+| **Goals & Advisor** | SMART goals linked to savings accounts (progress updates with the balance), presets for emergency fund, laptop, college, home, retirement and card payoff, the money-personality quiz, and ranked advice filtered by short, medium or long term |
+| **Assistant** | AI chat that reads balances, ~3 months of transactions, budget, bills and goals, and answers questions like "Which subscriptions should I cut?" or "Can I afford a $2,000 laptop by March?" |
 
-### The advisor
+### The advisor (rules)
 
-`advise()` in `app.js` is a deterministic rules engine that follows the course's priority order:
+`advise()` in `app.js` follows the course's priority order using real account data: cash flow (overspending, low checking before payday), emergency fund (with ETA from the actual savings transfer), high-interest debt and card interest actually paid, credit utilization and score, the 50/30/20 split, spending trends versus the prior two months, subscription price increases, uncategorized spending, goal feasibility and where each goal's money should live, investing readiness, insurance and scam awareness. Many items have a one-click follow-up that opens the right tab or asks the assistant.
 
-1. A working budget (spending ≤ income, 50/30/20 gaps, unassigned dollars)
-2. An emergency fund of 3–6 months of needs
-3. High-interest and payday debt first, using the avalanche method
-4. Credit utilization and score
-5. Each SMART goal: the monthly amount required, whether it's feasible within current savings, and where that money should live (cash/HYSA for short term, HYSA/CDs/bonds for medium, diversified index funds in a 401(k)/IRA for long). Each goal type gets its own tips: college cost and financial aid, home affordability, the 401(k) match for retirement, and so on.
-6. Investing readiness, inflation drag, insurance and scam awareness, plus a tip matched to your money personality
+### AI
 
-### Optional: Claude-generated plan
-
-On the Goals & Advisor tab, **Ask Claude** sends an anonymized JSON snapshot of the numbers (no names or account numbers) to the Claude API (`claude-opus-5-5`, streamed) and renders a short personalized plan. It uses the user's own API key, held only in `sessionStorage` for that tab. Calling the API straight from the browser is fine for a prototype. In production, route the call through a backend so the key never reaches the client.
+`aiComplete()` is the single AI entry point, used by the Assistant and by AI categorization. Inside claude.ai the published page uses the platform's built-in Claude access. Run locally, it calls the Claude API with the `@anthropic-ai/sdk` package and a key the user pastes on the Assistant tab. That is fine for a prototype; in production the bank's backend makes this call so no key reaches the browser.
 
 ## Files
 
 - `index.html`: layout and tabs
 - `styles.css`: bank-style navy/blue theme, worksheet styling, responsive layout
-- `app.js`: state, calculations, advisor rules, charts, Claude call
+- `data.js`: demo bank feed (accounts and ~3 months of transactions)
+- `app.js`: categorization, budget, recurring-bill detection, advisor rules, charts, AI assistant
 
 Educational prototype only. Not financial advice.

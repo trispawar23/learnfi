@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>LearnFi Wealth</title>
-  <meta name="description" content="Wealth management prototype: budget, net worth, debt, mortgage and goal-based advice." />
+  <meta name="description" content="Money-management features for a consumer banking app: auto-built budget, net worth, debt, mortgage, goals and an AI assistant." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,12 +17,14 @@
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="activity">Activity</button>
       <button role="tab" data-tab="budget">Monthly Budget</button>
       <button role="tab" data-tab="networth">Net Worth &amp; Debt</button>
       <button role="tab" data-tab="home">Mortgage</button>
       <button role="tab" data-tab="goals">Goals &amp; Advisor</button>
+      <button role="tab" data-tab="assistant">Assistant</button>
     </nav>
-    <button class="btn ghost small" id="resetBtn" title="Restore the sample data">Reset sample</button>
+    <button class="btn ghost small" id="resetBtn" title="Clear your edits and restore the demo">Reset demo</button>
   </header>
 
   <main>
@@ -32,7 +34,7 @@
         <div>
           <p class="eyebrow">Your money at a glance</p>
           <h1>Good to see you, <span id="heroName">Alex</span>.</h1>
-          <p class="muted">Every figure below comes from the numbers you enter in each tab.</p>
+          <p class="muted"><span class="live-dot" aria-hidden="true"></span> <span id="syncLine"></span></p>
         </div>
         <div class="hero-number">
           <span class="label">Net worth</span>
@@ -41,9 +43,11 @@
         </div>
       </div>
 
+      <div class="account-strip" id="accountStrip"></div>
+
       <div class="kpi-grid">
-        <div class="kpi"><span class="label">Monthly take-home income</span><span class="value" id="kpiIncome"></span><span class="sub">After-tax dollars</span></div>
-        <div class="kpi"><span class="label">Saving each month</span><span class="value" id="kpiSavings"></span><span class="sub" id="kpiSavingsSub"></span></div>
+        <div class="kpi"><span class="label" id="kpiIncomeLabel">Take-home income</span><span class="value" id="kpiIncome"></span><span class="sub" id="kpiIncomeSub"></span></div>
+        <div class="kpi"><span class="label">Saved last month</span><span class="value" id="kpiSavings"></span><span class="sub" id="kpiSavingsSub"></span></div>
         <div class="kpi"><span class="label">Emergency fund</span><span class="value" id="kpiEmergency"></span><span class="sub" id="kpiEmergencySub"></span></div>
         <div class="kpi"><span class="label">Total debt</span><span class="value" id="kpiDebt"></span><span class="sub" id="kpiDebtSub"></span></div>
         <div class="kpi"><span class="label">Estimated mortgage payment</span><span class="value" id="kpiMortgage"></span><span class="sub" id="kpiMortgageSub"></span></div>
@@ -51,12 +55,18 @@
       </div>
 
       <div class="grid-2">
-        <div class="card">
-          <div class="card-head">
-            <h2>50 / 30 / 20 check</h2>
-            <span class="muted small">Share of take-home pay, actual vs target</span>
+        <div class="stack">
+          <div class="card">
+            <div class="card-head">
+              <h2>50 / 30 / 20 check</h2>
+              <span class="muted small" id="splitMonthLabel"></span>
+            </div>
+            <div id="splitChart"></div>
           </div>
-          <div id="splitChart"></div>
+          <div class="card">
+            <div class="card-head"><h2>Coming up before payday</h2><span class="muted small" id="paydayLabel"></span></div>
+            <ul class="upcoming" id="upcomingList"></ul>
+          </div>
         </div>
         <div class="card">
           <div class="card-head">
@@ -68,13 +78,54 @@
       </div>
     </section>
 
-    <!-- ============ BUDGET (mirrors the paper worksheet) ============ -->
+    <!-- ============ ACTIVITY ============ -->
+    <section id="tab-activity" class="tab-panel" role="tabpanel" hidden>
+      <div class="grid-2 wide-left">
+        <div class="card">
+          <div class="card-head">
+            <h2>Transactions</h2>
+            <span class="muted small">Categories feed your budget automatically</span>
+          </div>
+          <div class="filters">
+            <label class="field"><span class="sr-only">Search</span><input id="txSearch" type="search" placeholder="Search merchants" /></label>
+            <label class="field"><span class="sr-only">Month</span><select id="txMonth"></select></label>
+            <label class="field"><span class="sr-only">Bucket</span>
+              <select id="txBucket">
+                <option value="all">All activity</option>
+                <option value="income">Income</option>
+                <option value="needs">Needs</option>
+                <option value="wants">Wants</option>
+                <option value="savings">Savings</option>
+                <option value="transfer">Transfers</option>
+                <option value="unassigned">Uncategorized</option>
+              </select>
+            </label>
+          </div>
+          <div id="uncatBanner"></div>
+          <div class="table-wrap"><table class="tx-table" id="txTable"><tbody></tbody></table></div>
+          <p class="muted small" id="txCount"></p>
+        </div>
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2>Bills &amp; subscriptions</h2><span class="muted small">Detected from repeat payments</span></div>
+            <ul class="recurring" id="recurringList"></ul>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Where it went</h2><span class="muted small" id="catMonthLabel"></span></div>
+            <ul class="cat-bars" id="catBars"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BUDGET (mirrors the paper worksheet, filled from transactions) ============ -->
     <section id="tab-budget" class="tab-panel" role="tabpanel" hidden>
       <div class="sheet">
         <h1 class="sheet-title">Monthly Budget</h1>
         <label class="sheet-bar month">
           <span>Month of:</span>
-          <input type="month" id="budgetMonth" />
+          <select id="budgetMonth"></select>
+          <span class="auto-note">Filled from your accounts</span>
         </label>
 
         <div class="sheet-cols">
@@ -84,7 +135,7 @@
               <table class="sheet-table"><tbody></tbody>
                 <tfoot><tr><td class="right">Total Income</td><td class="num" data-total="income"></td><td></td></tr></tfoot>
               </table>
-              <button class="btn link add-row" data-add="income">+ Add income</button>
+              <button class="btn link add-row" data-add="income">+ Add cash income</button>
             </div>
 
             <div class="sheet-block" data-group="savings">
@@ -92,7 +143,7 @@
               <table class="sheet-table"><tbody></tbody>
                 <tfoot><tr><td class="right">Total</td><td class="num" data-total="savings"></td><td></td></tr></tfoot>
               </table>
-              <button class="btn link add-row" data-add="savings">+ Add savings line</button>
+              <button class="btn link add-row" data-add="savings">+ Add manual line</button>
             </div>
 
             <div class="sheet-block">
@@ -109,7 +160,7 @@
               <table class="sheet-table"><tbody></tbody>
                 <tfoot><tr><td class="right">Total</td><td class="num" data-total="needs"></td><td></td></tr></tfoot>
               </table>
-              <button class="btn link add-row" data-add="needs">+ Add need</button>
+              <button class="btn link add-row" data-add="needs">+ Add cash expense</button>
             </div>
 
             <div class="sheet-block" data-group="wants">
@@ -117,11 +168,11 @@
               <table class="sheet-table"><tbody></tbody>
                 <tfoot><tr><td class="right">Total</td><td class="num" data-total="wants"></td><td></td></tr></tfoot>
               </table>
-              <button class="btn link add-row" data-add="wants">+ Add want</button>
+              <button class="btn link add-row" data-add="wants">+ Add cash expense</button>
             </div>
           </div>
         </div>
-        <p class="sheet-note">Enter after-tax income. Targets on each bar show 50% / 30% / 20% of total income.</p>
+        <p class="sheet-note">Rows marked <span class="chip-auto">auto</span> come from categorized transactions. Click one to see them. Card payments between your own accounts are left out so nothing counts twice.</p>
       </div>
 
       <div class="card">
@@ -135,21 +186,23 @@
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h2>Assets</h2><span class="muted small">What you own</span></div>
+          <ul class="acct-list" id="linkedAssets"></ul>
           <table class="data-table" id="assetsTable">
-            <thead><tr><th>Item</th><th class="num">Value</th><th></th></tr></thead>
+            <thead><tr><th>Other assets you add</th><th class="num">Value</th><th></th></tr></thead>
             <tbody></tbody>
-            <tfoot><tr><td>Total assets</td><td class="num" id="assetsTotal"></td><td></td></tr></tfoot>
           </table>
-          <button class="btn link" data-add-asset>+ Add asset</button>
+          <button class="btn link" data-add-asset>+ Add asset (home, car, …)</button>
+          <div class="total-line"><span>Total assets</span><strong id="assetsTotal"></strong></div>
         </div>
         <div class="card">
           <div class="card-head"><h2>Liabilities</h2><span class="muted small">What you owe</span></div>
+          <ul class="acct-list" id="linkedDebts"></ul>
           <table class="data-table" id="debtsTable">
-            <thead><tr><th>Debt</th><th>Type</th><th class="num">Balance</th><th class="num">APR %</th><th class="num">Min / mo</th><th></th></tr></thead>
+            <thead><tr><th>Other debts you add</th><th>Type</th><th class="num">Balance</th><th class="num">APR %</th><th class="num">Min / mo</th><th></th></tr></thead>
             <tbody></tbody>
-            <tfoot><tr><td colspan="2">Total liabilities</td><td class="num" id="debtsTotal"></td><td colspan="3"></td></tr></tfoot>
           </table>
-          <button class="btn link" data-add-debt>+ Add debt</button>
+          <button class="btn link" data-add-debt>+ Add debt held elsewhere</button>
+          <div class="total-line"><span>Total liabilities</span><strong id="debtsTotal"></strong></div>
         </div>
       </div>
 
@@ -176,11 +229,7 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h2>Credit health</h2><span class="muted small">US score range 300–850</span></div>
-          <div class="field-row">
-            <label class="field">Credit score<input type="number" id="creditScore" min="300" max="850" /></label>
-            <label class="field">Total card limits<input type="number" id="creditLimit" min="0" step="100" /></label>
-          </div>
+          <div class="card-head"><h2>Credit health</h2><span class="muted small">Score updated monthly · US range 300–850</span></div>
           <div id="creditGauge"></div>
           <ul class="factor-list">
             <li><span>Payment history</span><b>35%</b></li>
@@ -189,7 +238,7 @@
             <li><span>Credit mix</span><b>10%</b></li>
             <li><span>New credit (hard inquiries)</span><b>10%</b></li>
           </ul>
-          <p class="muted small">Income doesn't count toward your score. What counts is whether you pay on time and how much of your limit you use.</p>
+          <p class="muted small">Income doesn't count toward your score. What counts is whether you pay on time and how much of your limit you use. Checking your own score is a soft inquiry and doesn't hurt it.</p>
         </div>
       </div>
     </section>
@@ -227,7 +276,7 @@
             <label class="field">Return on down payment if invested %<input type="number" data-home="altReturn" step="0.5" /></label>
           </div>
           <div id="rentBuyResult"></div>
-          <p class="muted small">This follows the course's worked example: mortgage interest after the tax deduction, plus property tax and upkeep, compared with rent minus what the down payment could have earned elsewhere. Principal paydown is left out because it builds equity, not cost.</p>
+          <p class="muted small">Your current rent comes from your checking account. This follows the course's worked example: mortgage interest after the tax deduction, plus property tax and upkeep, compared with rent minus what the down payment could have earned elsewhere. Principal paydown is left out because it builds equity, not cost.</p>
         </div>
       </div>
     </section>
@@ -242,10 +291,9 @@
             <label class="field">Goal name<input name="name" required placeholder="e.g. Down payment for a home" /></label>
             <div class="field-row">
               <label class="field">Target amount $<input name="target" type="number" min="1" required /></label>
-              <label class="field">Already saved $<input name="saved" type="number" min="0" value="0" /></label>
+              <label class="field">Years to reach it<input name="years" type="number" min="0.25" step="0.25" required /></label>
             </div>
             <div class="field-row">
-              <label class="field">Years to reach it<input name="years" type="number" min="0.25" step="0.25" required /></label>
               <label class="field">Goal type
                 <select name="kind">
                   <option value="emergency">Emergency fund</option>
@@ -255,6 +303,9 @@
                   <option value="retirement">Retirement</option>
                   <option value="debt">Pay off debt</option>
                 </select>
+              </label>
+              <label class="field">Track progress with
+                <select name="accountId" id="goalAccount"></select>
               </label>
             </div>
             <div class="form-actions">
@@ -281,7 +332,7 @@
             <button data-horizon="long" aria-pressed="false">Long term (5+ yrs)</button>
           </div>
         </div>
-        <p class="muted small">Built-in rules turn the course's checklist into ranked steps: budget first, then an emergency fund, then high-interest debt, then goals and investing.</p>
+        <p class="muted small">Built from your account activity using the course's order: budget first, then an emergency fund, then high-interest debt, then goals and investing.</p>
         <ol id="allAdvice" class="advice-list"></ol>
       </div>
 
@@ -290,36 +341,40 @@
           <span class="muted small">Miguel invests $25/mo for 40 yrs; Jasmine waits 10 yrs, then invests $50/mo for 30 yrs (7%/yr)</span></div>
         <div id="compoundChart"></div>
       </div>
+    </section>
 
-      <div class="card">
-        <div class="card-head"><h2>Ask Claude for a personalized plan</h2><span class="tag">Optional · AI</span></div>
-        <p class="muted small">Sends a summary of your numbers (no names or account numbers) to the Claude API using your own key. The key stays in this browser tab's session and is cleared when you close it. This is a prototype, so in production the call would go through a backend.</p>
-        <div class="field-row">
-          <label class="field">Anthropic API key<input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off" /></label>
-          <label class="field">Focus
-            <select id="aiFocus">
-              <option value="overall">Overall financial plan</option>
-              <option value="short">Short-term goals</option>
-              <option value="college">Paying for college</option>
-              <option value="home">Buying a home</option>
-              <option value="retirement">Long-term / retirement</option>
-            </select>
-          </label>
+    <!-- ============ ASSISTANT ============ -->
+    <section id="tab-assistant" class="tab-panel" role="tabpanel" hidden>
+      <div class="card chat-card">
+        <div class="card-head">
+          <h2>Ask about your money</h2>
+          <span class="tag">AI</span>
         </div>
-        <label class="field">Anything else the advisor should know?
-          <textarea id="aiNote" rows="2" placeholder="e.g. I'm 24, expecting a raise next year, and want to start grad school in 3 years."></textarea>
-        </label>
-        <div class="form-actions"><button class="btn primary" id="askClaude">Get AI plan</button></div>
-        <div id="aiOutput" class="ai-output" aria-live="polite"></div>
+        <p class="muted small">The assistant reads your balances, last 3 months of transactions, budget and goals, then answers in plain language. It can explain, plan and compare, but it can't move money.</p>
+        <div id="aiSetup" class="ai-setup" hidden>
+          <label class="field">Anthropic API key (local prototype only)
+            <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off" />
+          </label>
+          <p class="muted small">Kept in this tab's session storage only. In production the bank's backend would make this call.</p>
+        </div>
+        <div class="chat-log" id="chatLog" aria-live="polite"></div>
+        <div class="chips" id="chatChips"></div>
+        <form class="chat-form" id="chatForm">
+          <label class="sr-only" for="chatInput">Your question</label>
+          <textarea id="chatInput" rows="2" placeholder="e.g. Can I afford a $2,000 laptop by March without touching my emergency fund?"></textarea>
+          <button class="btn primary" type="submit" id="chatSend">Ask</button>
+        </form>
+        <p class="muted small">AI-generated and educational. Not financial advice.</p>
       </div>
     </section>
   </main>
 
   <footer class="foot">
-    Educational prototype. Not financial advice. Concepts adapted from Khan Academy's free Financial Literacy course.
+    Prototype with demo account data. Not financial advice. Concepts adapted from Khan Academy's free Financial Literacy course.
   </footer>
 
   <div id="tooltip" class="tooltip" role="status" hidden></div>
+  <script src="data.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
