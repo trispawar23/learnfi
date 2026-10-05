@@ -6,6 +6,7 @@
 
 const STORE_KEY = "learnfi.v2";
 const SAVINGS_GROWTH = { short: 0.0, medium: 0.04, long: 0.07 }; // cash, HYSA/CD, diversified index
+const INFLATION = 0.03;
 
 const bank = window.LearnFiBank.load();
 
@@ -55,6 +56,10 @@ function defaultState() {
     quiz: {},
     horizon: "all",
     budgetMonth: null,
+    invest: { age: bank.profile.age, retireAge: 65, ret: 6, profile: null },
+    feeCalc: { amount: null, monthly: null, years: null },
+    booking: null,
+    bookTopic: null,
   };
 }
 
@@ -284,7 +289,7 @@ function advise() {
   const monthLabel = monthName(LAST_FULL, "long");
 
   if (t.income <= 0) {
-    add({ priority: "high", tag: "Budget", title: "No income detected yet", body: "Once a paycheck lands in a linked account, your budget fills in automatically. You can also add cash income on the Monthly Budget tab.", why: "A budget is the foundation." });
+    add({ priority: "high", tag: "Budget", title: "No income detected yet", body: "Once a paycheck lands in a linked account, your budget fills in automatically. You can also add cash income on the Budget tab.", why: "A budget is the foundation." });
     return rank(out);
   }
 
@@ -336,7 +341,7 @@ function advise() {
     const saved = snow && plan ? snow.interestPaid - plan.interestPaid : 0;
     add({ priority: "high", tag: "Debt", horizons: ["short", "medium"], title: paidInt > 0 ? `You paid ${money(paidInt)} in card interest over the last 3 months` : `Pay down ${hi[0].name} (${num(hi[0].apr)}% APR)`, body: plan && !plan.stuck
       ? `${hi[0].name} charges ${num(hi[0].apr)}% APR. Paying ${money(plan.budget)}/mo with the avalanche method clears non-mortgage debt in ${fmtMonths(plan.months)}${saved > 1 ? `, ${money(saved)} less interest than snowball` : ""}. After that, pay the statement balance in full each month.`
-      : "Your current payments don't cover the interest. Raise the monthly amount on the Net Worth & Debt tab.", action: { label: "See payoff plan", tab: "networth" }, why: "Paying off a 25% APR card is a guaranteed 25% return, which no investment matches." });
+      : "Your current payments don't cover the interest. Raise the monthly amount on the Net Worth tab.", action: { label: "See payoff plan", tab: "networth" }, why: "Paying off a 25% APR card is a guaranteed 25% return, which no investment matches." });
   }
 
   // Credit
@@ -400,6 +405,19 @@ function advise() {
     add({ priority: "high", tag: "Goals", horizons: ["short", "medium", "long"], title: `Your goals need ${money(goalNeed)}/mo but you saved ${money(t.savings)} in ${monthLabel}`, body: "Something has to give: extend a deadline, lower a target, or free up money from wants. Rank goals by order: emergency fund, high-interest debt, then everything else.", action: { label: "Ask the assistant to rebalance", ask: "My goals need more per month than I'm saving. Help me prioritize and rebalance them using my real spending." }, why: "A SMART goal must be achievable and realistic." });
   }
 
+  // Investments
+  const mt = match401k(), pf = portfolio();
+  if (mt && mt.missed > 0) {
+    add({ priority: "high", tag: "Investing", horizons: ["long"], title: `You're leaving ${money(mt.missed)}/yr of 401(k) match on the table`, body: `You contribute ${mt.employeePct}% and your employer matches ${mt.matchRate * 100}% up to ${mt.matchUpToPct}%. Raising to ${mt.matchUpToPct}% costs about ${money((mt.employeeExtra / 24) * 0.78)} per paycheck after tax and adds ${money(mt.employeeExtra + mt.missed)}/yr to your retirement. It's an instant ${mt.matchRate * 100}% return.`, action: { label: "See the projection", tab: "invest" }, why: "An employer match is free money; take it even while paying down debt." });
+  }
+  pf.highFee.forEach((h) => add({ priority: "med", tag: "Fees", horizons: ["long"], title: `${h.name} charges ${h.er.toFixed(2)}% a year`, body: `That's ${money((h.value * h.er) / 100)}/yr on ${money(h.value)}. A broad index fund costs about ${INDEX_ER}%. Over decades, fee differences compound into thousands of dollars.`, action: { label: "Review holdings", tab: "invest" }, why: "Fees are one of the few investment returns you control." }));
+  pf.single.filter((h) => h.value / pf.total > 0.1).forEach((h) => add({ priority: "med", tag: "Investing", horizons: ["long"], title: `${pct(h.value / pf.total)} of your investments is one stock (${h.name})`, body: "Your job already depends on this company. Diversifying keeps one bad year from hitting both your paycheck and your savings. Selling inside the 401(k) isn't taxed.", action: { label: "See allocation", tab: "invest" }, why: "Don't keep all your eggs in one basket." }));
+  const prof = PROFILES[riskProfile()];
+  const drift = Object.keys(CLASSES).reduce((mx, k) => Math.max(mx, Math.abs(pf.byClass[k] / pf.total - prof.target[k])), 0);
+  if (drift > 0.1) add({ priority: "low", tag: "Investing", horizons: ["long"], title: `Your mix is ${pct(drift)} off your ${prof.label.toLowerCase()} target`, body: "Rebalance inside your retirement accounts, or send new contributions to the underweight assets.", action: { label: "See rebalancing", tab: "invest" }, why: "Rebalancing keeps your risk where you chose it." });
+  const fit = advisorFit();
+  if (fit.complex) add({ priority: "low", tag: "Advice", horizons: ["medium", "long"], title: `Consider ${fit.rec[0].toLowerCase()}`, body: fit.rec[1] + ".", action: { label: "Compare advisor options", tab: "advisors" }, why: "Some decisions are worth a second set of eyes, but ongoing fees add up." });
+
   // Investing readiness
   if (!hi.length && monthsCovered >= 3) {
     add({ priority: "low", tag: "Investing", horizons: ["long"], title: "You're ready to invest more for the long term", body: "Diversify, for example with a broad index fund like the S&P 500, which has historically returned ~10%/yr (6–7% after inflation). Max the 401(k) match first, then your Roth IRA.", why: "Basics are covered: budget, emergency fund, no high-interest debt." });
@@ -431,7 +449,7 @@ function goalAdvice(g, h, need, rate, t, m, efMonths) {
     college: ` Look at the full cost (tuition, books, fees, housing, transport), not just the sticker price. Apply for grants and scholarships before taking loans, and talk to graduates of the program about real job outcomes. For grad school, count the salary you won't earn while studying.${h !== "short" ? " In the US, a 529 plan grows tax-free for education." : ""}`,
     home: ` On the Mortgage tab, this price means about ${money(m.monthlyAll)}/mo with taxes and insurance (${t.income ? pct(m.monthlyAll / t.income) : "–"} of take-home), versus ${money(m.rent)} rent today. 20% down avoids PMI.`,
     retirement: " Time matters more than the amount. Take the full employer 401(k) match first, then your Roth IRA. Raise contributions by 1% each year.",
-    debt: " Use the avalanche method on the Net Worth & Debt tab and pay cards in full afterward.",
+    debt: " Use the avalanche method on the Net Worth tab and pay cards in full afterward.",
   }[g.kind] || "";
   const efWarn = g.kind !== "emergency" && efMonths < 3 && h !== "long" ? " Fund your emergency cushion alongside this one." : "";
   return { priority, tag: `${label} goal`, horizons: [h], title: `${g.name}: ${money(target)} in ${fmtYears(num(g.years))}`, body: base + extra + efWarn, why: `Best home for ${label} money: ${vehicle}.`, action: { label: "Ask the assistant", ask: `Help me plan for my goal "${g.name}" (${money(target)} in ${fmtYears(num(g.years))}). What's realistic given my spending, and where should the money go?` } };
@@ -853,6 +871,277 @@ function renderQuizResult() {
   el.innerHTML = `<strong>${p.name}</strong> · ${p.score} points<p class="small" style="margin:4px 0">${esc(p.desc)}</p><ul class="small" style="margin:0;padding-left:18px">${p.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
 }
 
+// ---------------------------------------------------------------- investments
+const CLASSES = {
+  us_stock: { label: "US stocks", color: "var(--s-needs)" },
+  intl_stock: { label: "International stocks", color: "var(--s-savings)" },
+  bonds: { label: "Bonds", color: "var(--s-wants)" },
+  cash: { label: "Cash & stable value", color: "var(--s-cash)" },
+};
+const classOf = (h) => (h.cls === "single_stock" ? "us_stock" : h.cls);
+const PROFILES = {
+  conservative: { label: "Conservative", target: { us_stock: 0.3, intl_stock: 0.1, bonds: 0.5, cash: 0.1 } },
+  moderate: { label: "Moderate", target: { us_stock: 0.45, intl_stock: 0.15, bonds: 0.35, cash: 0.05 } },
+  growth: { label: "Growth", target: { us_stock: 0.55, intl_stock: 0.25, bonds: 0.15, cash: 0.05 } },
+  aggressive: { label: "Aggressive", target: { us_stock: 0.65, intl_stock: 0.3, bonds: 0.05, cash: 0 } },
+};
+const PROFILE_ORDER = ["conservative", "moderate", "growth", "aggressive"];
+const INDEX_ER = 0.05; // a typical broad index fund, % per year
+
+function portfolio() {
+  const hs = bank.accounts.flatMap((a) => (a.holdings || []).map((h) => ({ ...h, account: a })));
+  const total = hs.reduce((s, h) => s + h.value, 0);
+  const byClass = Object.fromEntries(Object.keys(CLASSES).map((k) => [k, 0]));
+  hs.forEach((h) => { byClass[classOf(h)] += h.value; });
+  const fees = hs.reduce((s, h) => s + (h.value * h.er) / 100, 0);
+  return { hs, total, byClass, fees, weightedEr: total ? (fees / total) * 100 : 0, single: hs.filter((h) => h.cls === "single_stock"), highFee: hs.filter((h) => h.er >= 0.5) };
+}
+const yearsToRetire = () => Math.max(1, num(state.invest.retireAge) - num(state.invest.age));
+function suggestedProfile() {
+  const yrs = yearsToRetire(), p = personality();
+  let i = yrs >= 15 ? 2 : yrs >= 7 ? 1 : 0;
+  if (p?.name === "Saver") i = Math.max(0, i - 1);
+  if (p?.name === "Investor" && yrs >= 15) i = 3;
+  return PROFILE_ORDER[i];
+}
+const riskProfile = () => state.invest.profile || suggestedProfile();
+
+function match401k() {
+  const k = bank.accounts.find((a) => a.contribution);
+  if (!k) return null;
+  const c = k.contribution, salary = bank.profile.grossSalary;
+  const employee = (salary * c.employeePct) / 100;
+  const employer = ((salary * Math.min(c.employeePct, c.matchUpToPct)) / 100) * c.matchRate;
+  const employeeExtra = (salary * Math.max(0, c.matchUpToPct - c.employeePct)) / 100;
+  return { account: k, ...c, salary, employee, employer, employeeExtra, missed: employeeExtra * c.matchRate };
+}
+function monthlyInvesting() {
+  const ira = -txIn(LAST_FULL).filter((t) => catOf(t) === "investment").reduce((s, t) => s + t.amount, 0);
+  const m = match401k();
+  return { ira, k401: m ? (m.employee + m.employer) / 12 : 0, fullMatchExtra: m ? (m.employeeExtra + m.missed) / 12 : 0 };
+}
+
+function renderInvest() {
+  const p = portfolio(), m = match401k(), mi = monthlyInvesting();
+  const prof = riskProfile(), yrs = yearsToRetire(), r = num(state.invest.ret) / 100;
+  const monthly = mi.ira + mi.k401;
+  const endCurrent = futureValue(monthly, yrs, r, p.total);
+  const real = (v) => v / Math.pow(1 + INFLATION, yrs);
+
+  $("#investKpis").innerHTML = `
+    <div class="kpi"><span class="label">Invested</span><span class="value">${money(p.total)}</span><span class="sub">Roth IRA + 401(k), ${p.hs.length} holdings</span></div>
+    <div class="kpi"><span class="label">Going in each month</span><span class="value">${money(monthly)}</span><span class="sub">${money(mi.ira)} IRA · ${money(mi.k401)} 401(k) incl. match</span></div>
+    <div class="kpi"><span class="label">401(k) match</span><span class="value">${m ? `${m.employeePct}% of ${m.matchUpToPct}%` : "–"}</span><span class="sub">${m && m.missed > 0 ? `<span class="status bad">Missing ${money(m.missed)}/yr free money</span>` : `<span class="status good">Getting the full match</span>`}</span></div>
+    <div class="kpi"><span class="label">Fees you pay each year</span><span class="value">${money(p.fees)}</span><span class="sub">Weighted expense ratio ${p.weightedEr.toFixed(2)}%</span></div>
+    <div class="kpi"><span class="label">Projected at ${num(state.invest.retireAge)}</span><span class="value">${money(endCurrent)}</span><span class="sub">${money(real(endCurrent))} in today's dollars</span></div>
+    <div class="kpi"><span class="label">Income it could support</span><span class="value">${money(real(endCurrent) * 0.04 / 12)}/mo</span><span class="sub">Using the 4% rule, today's dollars</span></div>`;
+
+  // allocation
+  $("#riskProfile").value = prof;
+  $("#riskWhy").textContent = state.invest.profile
+    ? `You picked ${PROFILES[prof].label}. Suggested for you: ${PROFILES[suggestedProfile()].label}.`
+    : `Suggested from ${yrs} years until retirement${personality() ? ` and your ${personality().name} money personality` : ""}. You can change it.`;
+  renderAllocChart(p, PROFILES[prof].target);
+  const diffs = Object.keys(CLASSES).map((k) => ({ k, d: p.byClass[k] / p.total - PROFILES[prof].target[k] }));
+  const over = diffs.filter((x) => x.d > 0.05).sort((a, b) => b.d - a.d), under = diffs.filter((x) => x.d < -0.05).sort((a, b) => a.d - b.d);
+  $("#rebalance").innerHTML = over.length || under.length
+    ? `<div class="result-box"><strong>To match ${PROFILES[prof].label}:</strong><ul class="small tight">${over.map((x) => `<li>Trim ${CLASSES[x.k].label} by about ${money(x.d * p.total)}</li>`).join("")}${under.map((x) => `<li>Add about ${money(-x.d * p.total)} to ${CLASSES[x.k].label}</li>`).join("")}</ul><p class="muted small" style="margin:6px 0 0">Rebalance inside the IRA and 401(k), where trades aren't taxed, or point new contributions at what's underweight.</p></div>`
+    : `<p class="status good">Within 5 points of your target in every asset class.</p>`;
+
+  // projection
+  $("#invAge").value = state.invest.age; $("#invRetire").value = state.invest.retireAge; $("#invReturn").value = state.invest.ret;
+  $("#projLabel").textContent = `${yrs} years · ${num(state.invest.ret)}%/yr`;
+  const series = [{ name: "Current contributions", color: "var(--s-needs)", monthly }];
+  if (m && m.missed > 0) series.push({ name: `Raise 401(k) to ${m.matchUpToPct}% (full match)`, color: "var(--s-savings)", monthly: monthly + mi.fullMatchExtra });
+  series.forEach((s) => { s.data = Array.from({ length: yrs + 1 }, (_, y) => futureValue(s.monthly, y, r, p.total)); });
+  renderLineChart($("#projChart"), series, num(state.invest.age), yrs);
+  const gain = series[1] ? series[1].data[yrs] - series[0].data[yrs] : 0;
+  $("#projNote").textContent = `${gain > 0 ? `Taking the full match adds about ${money(gain)} by ${num(state.invest.retireAge)}. ` : ""}Projections assume a steady return; real markets move up and down. Inflation at ${pct(INFLATION)} is used for today's-dollar figures.`;
+
+  // holdings
+  $("#holdingsTable").innerHTML = `<thead><tr><th>Holding</th><th>Account</th><th>Type</th><th class="num">Value</th><th class="num">Share</th><th class="num">Expense ratio</th><th class="num">Cost / yr</th></tr></thead><tbody>` +
+    p.hs.map((h) => {
+      const share = h.value / p.total;
+      const flag = h.er >= 0.5 ? ` <span class="status warn">High fee</span>` : h.cls === "single_stock" && share > 0.1 ? ` <span class="status warn">Concentrated</span>` : "";
+      return `<tr><td><strong>${esc(h.name)}</strong>${flag}</td><td>${esc(h.account.name)}</td><td>${h.cls === "single_stock" ? "Single stock" : CLASSES[h.cls].label}</td><td class="num">${cents(h.value)}</td><td class="num">${pct(share, 1)}</td><td class="num">${h.er.toFixed(2)}%</td><td class="num">${cents((h.value * h.er) / 100)}</td></tr>`;
+    }).join("") + `</tbody><tfoot><tr><td colspan="3">Total</td><td class="num">${cents(p.total)}</td><td class="num">100%</td><td class="num">${p.weightedEr.toFixed(2)}%</td><td class="num">${cents(p.fees)}</td></tr></tfoot>`;
+  const notes = p.highFee.map((h) => {
+    const yearly = (h.value * (h.er - INDEX_ER)) / 100;
+    const thirty = futureValue(0, 30, 0.06 - INDEX_ER / 100, h.value) - futureValue(0, 30, 0.06 - h.er / 100, h.value);
+    return `<li><strong>${esc(h.name)}</strong> charges ${h.er.toFixed(2)}% a year. A broad index fund at ~${INDEX_ER}% would save about ${money(yearly)} this year and about ${money(thirty)} over 30 years on this balance alone.</li>`;
+  });
+  p.single.forEach((h) => { if (h.value / p.total > 0.1) notes.push(`<li><strong>${pct(h.value / p.total)} of your investments is ${esc(h.name)}.</strong> Your paycheck already depends on this company. Many planners suggest keeping a single stock under 10%; selling inside the 401(k) isn't taxed.</li>`); });
+  $("#feeNote").innerHTML = notes.length ? `<ul class="small tight">${notes.join("")}</ul>` : "";
+}
+
+function renderAllocChart(p, target) {
+  const el = $("#allocChart"), keys = Object.keys(CLASSES);
+  const rows = [{ label: "Now", share: Object.fromEntries(keys.map((k) => [k, p.byClass[k] / p.total])) }, { label: "Target", share: target }];
+  const W = 520, padL = 64, barW = W - padL - 8, bh = 26, H = rows.length * 46 + 4;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Current versus target asset allocation">`;
+  rows.forEach((r, i) => {
+    const y = i * 46 + 6;
+    svg += `<text x="${padL - 10}" y="${y + bh / 2 + 4}" text-anchor="end" style="fill:var(--ink);font-weight:600">${r.label}</text>`;
+    let x = padL;
+    keys.forEach((k) => {
+      const w = r.share[k] * barW;
+      if (w <= 0) return;
+      svg += `<rect x="${x}" y="${y}" width="${Math.max(0, w - 2)}" height="${bh}" rx="3" fill="${CLASSES[k].color}" data-alloc="${i}:${k}"/>`;
+      if (w > 44) svg += `<text x="${x + w / 2 - 1}" y="${y + bh / 2 + 4}" text-anchor="middle" style="fill:#fff;font-weight:600;pointer-events:none">${pct(r.share[k])}</text>`;
+      x += w;
+    });
+  });
+  svg += `</svg>`;
+  el.className = "chart";
+  el.innerHTML = `<div class="legend">${keys.map((k) => `<span><i style="background:${CLASSES[k].color}"></i>${CLASSES[k].label}</span>`).join("")}</div>${svg}`;
+  $$("[data-alloc]", el).forEach((rect) => {
+    const [i, k] = rect.dataset.alloc.split(":");
+    const html = `<strong>${CLASSES[k].label}</strong><br>Now <b>${pct(rows[0].share[k], 1)}</b> (${money(p.byClass[k])})<br>Target <b>${pct(target[k])}</b> (${money(target[k] * p.total)})`;
+    rect.addEventListener("mousemove", (e) => showTip(html, e.clientX, e.clientY));
+    rect.addEventListener("mouseleave", hideTip);
+  });
+}
+
+// Generic year-by-year line chart with crosshair, used for the retirement projection.
+function renderLineChart(el, series, startAge, years) {
+  const W = 560, H = 250, padL = 56, padR = 96, padT = 10, padB = 28;
+  const maxV = Math.max(...series.flatMap((s) => s.data));
+  const raw = maxV / 4, mag = Math.pow(10, Math.floor(Math.log10(raw || 1))), step = Math.ceil(raw / mag) * mag, maxY = step * 4;
+  const x = (yr) => padL + (yr / years) * (W - padL - padR);
+  const y = (v) => padT + (1 - v / maxY) * (H - padT - padB);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected balance by age">`;
+  for (let v = 0; v <= maxY + 1; v += step) svg += `<line class="grid-line" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text class="axis-label" x="${padL - 8}" y="${y(v) + 4}" text-anchor="end">${compactUsd.format(v)}</text>`;
+  const tickEvery = years > 30 ? 10 : 5;
+  for (let yr = 0; yr <= years; yr += tickEvery) svg += `<text class="axis-label" x="${x(yr)}" y="${H - 8}" text-anchor="middle">Age ${startAge + yr}</text>`;
+  series.forEach((s, i) => {
+    svg += `<path d="${s.data.map((v, j) => `${j ? "L" : "M"}${x(j).toFixed(1)},${y(v).toFixed(1)}`).join("")}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    svg += `<text x="${x(years) + 8}" y="${y(s.data[years]) + (series.length > 1 ? (i === 0 ? 14 : -4) : 4)}" style="fill:var(--ink);font-weight:600">${compactUsd.format(s.data[years])}</text>`;
+  });
+  svg += `<line class="xh grid-line" x1="0" x2="0" y1="${padT}" y2="${H - padB}" style="stroke:var(--ink-2);visibility:hidden"/>`;
+  series.forEach((s, i) => { svg += `<circle class="dot" data-i="${i}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="visibility:hidden"/>`; });
+  svg += `<rect class="hit" x="${padL}" y="${padT}" width="${W - padL - padR}" height="${H - padT - padB}" fill="transparent"/></svg>`;
+  el.className = "chart";
+  el.innerHTML = (series.length > 1 ? `<div class="legend">${series.map((s) => `<span><i class="line" style="background:${s.color}"></i>${esc(s.name)}</span>`).join("")}</div>` : "") + svg;
+  const svgEl = $("svg", el), xh = $(".xh", el);
+  $(".hit", el).addEventListener("mousemove", (e) => {
+    const pt = svgEl.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const q = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+    const yr = Math.max(0, Math.min(years, Math.round(((q.x - padL) / (W - padL - padR)) * years)));
+    xh.setAttribute("x1", x(yr)); xh.setAttribute("x2", x(yr)); xh.style.visibility = "visible";
+    $$(".dot", el).forEach((c) => { c.setAttribute("cx", x(yr)); c.setAttribute("cy", y(series[+c.dataset.i].data[yr])); c.style.visibility = "visible"; });
+    showTip(`<strong>Age ${startAge + yr}</strong><br>${series.map((s) => `${esc(s.name)}: <b>${money(s.data[yr])}</b>`).join("<br>")}`, e.clientX, e.clientY);
+  });
+  $(".hit", el).addEventListener("mouseleave", () => { hideTip(); xh.style.visibility = "hidden"; $$(".dot", el).forEach((c) => { c.style.visibility = "hidden"; }); });
+}
+
+// ---------------------------------------------------------------- financial advisors
+function advisorFit() {
+  const p = portfolio(), t = totals(LAST_FULL), bs = balanceSheet(), m = match401k();
+  const hiDebt = allDebts().some((d) => d.type !== "mortgage" && num(d.apr) >= 10 && num(d.balance) > 0);
+  const bigGoals = state.goals.filter((g) => ["home", "college"].includes(g.kind));
+  const reasons = [];
+  if (hiDebt || t.needs + t.wants > t.income) reasons.push({ need: true, text: `You carry ${money(bs.cardDebt)} on a ${allDebts().find((d) => d.type === "card")?.apr ?? ""}% card. A free session with a debt and credit coach (or a nonprofit credit counselor) can build a payoff plan.` });
+  if (m && m.missed > 0) reasons.push({ need: false, text: `Raising your 401(k) from ${m.employeePct}% to ${m.matchUpToPct}% captures ${money(m.missed)}/yr of match. You can do this yourself in your employer's benefits portal.` });
+  if (p.highFee.length || p.single.some((h) => h.value / p.total > 0.1)) reasons.push({ need: false, text: "Your portfolio has a high-fee fund and a concentrated company-stock position. The Invest tab shows the fixes; an investment specialist can review them with you." });
+  if (bigGoals.length) reasons.push({ need: true, text: `You have ${bigGoals.map((g) => g.name.toLowerCase()).join(" and ")} on your list. A one-time plan from a fee-only planner is worth it for decisions this size.` });
+  if (p.total < 50000) reasons.push({ need: false, text: `With ${money(p.total)} invested, a 1% ongoing advisor would cost ${money(p.total * 0.01)}/yr now and much more as you grow. Low-cost index funds or a robo-advisor cover this stage.` });
+  else if (p.total >= 250000) reasons.push({ need: true, text: `At ${money(p.total)} invested, tax planning and withdrawal strategy can be worth an ongoing fiduciary relationship.` });
+  const complex = reasons.some((r) => r.need);
+  const rec = p.total >= 250000 ? ["Ongoing fee-only fiduciary", "Flat-fee or AUM, ideally under 1%"]
+    : complex ? ["A one-time session, not ongoing management", "Start with a free session with one of our planners, or a flat-fee plan from a fee-only fiduciary"]
+    : ["Do it yourself or use a robo-advisor", "Your situation is simple enough for low-cost tools; revisit after big life changes"];
+  return { rec, reasons, complex };
+}
+
+function renderAdvisors() {
+  const fit = advisorFit();
+  $("#advisorFit").innerHTML = `<p class="rec-head"><span class="rec-pill">Our suggestion</span> <strong>${esc(fit.rec[0])}</strong></p><p class="muted">${esc(fit.rec[1])}.</p>
+    <ul class="fit-list">${fit.reasons.map((r) => `<li class="${r.need ? "need" : "self"}"><span class="fit-tag">${r.need ? "Advice helps" : "You can do this"}</span>${esc(r.text)}</li>`).join("")}</ul>`;
+
+  const fc = state.feeCalc, p = portfolio(), mi = monthlyInvesting();
+  const amount = fc.amount ?? Math.round(p.total), monthly = fc.monthly ?? Math.round(mi.ira + mi.k401), years = fc.years ?? 30;
+  $("#feeAmount").value = amount; $("#feeMonthly").value = monthly; $("#feeYears").value = years;
+  const opts = [
+    { name: "DIY index funds", pctFee: 0.05 }, { name: "Robo-advisor", pctFee: 0.3 }, { name: "Hybrid", pctFee: 0.5 },
+    { name: "AUM advisor", pctFee: 1.0 }, { name: "Flat-fee planner", flat: 2000 },
+  ];
+  const end = (o) => {
+    if (o.flat != null) { let b = amount; for (let i = 0; i < years * 12; i++) b = b * (1 + 0.06 / 12) + monthly - o.flat / 12; return b; }
+    return futureValue(monthly, years, 0.06 - o.pctFee / 100, amount);
+  };
+  const base = end(opts[0]);
+  $("#feeCompare").innerHTML = `<table class="compare"><thead><tr><th>Option</th><th>Fee now</th><th>After ${years} yrs</th><th>Cost vs DIY</th></tr></thead><tbody>${opts.map((o) => {
+    const v = end(o);
+    return `<tr><td>${o.name}</td><td>${o.flat != null ? `${money(o.flat)}/yr` : `${o.pctFee}% · ${money((amount * o.pctFee) / 100)}/yr`}</td><td>${money(v)}</td><td>${v >= base - 1 ? "–" : `<span class="status warn">−${money(base - v)}</span>`}</td></tr>`;
+  }).join("")}</tbody></table>`;
+  renderBooking();
+}
+
+const ADVISORS = [
+  { id: "priya", name: "Priya Raman", creds: "CFP®", role: "Financial planner · salaried, no commissions", topics: ["budget", "home", "college", "retirement"], fee: "Free for customers", initials: "PR" },
+  { id: "marcus", name: "Marcus Lee", creds: "CFA", role: "Investment specialist", topics: ["investing", "retirement"], fee: "Free review · managed portfolios 0.35%/yr", initials: "ML" },
+  { id: "dana", name: "Dana Ortiz", creds: "Certified credit counselor", role: "Debt and credit coach", topics: ["budget", "credit"], fee: "Free", initials: "DO" },
+];
+const TOPICS = { budget: "Budget & debt", investing: "Investing & my portfolio", retirement: "Retirement", home: "Buying a home", college: "College planning", credit: "Credit score" };
+function slots() {
+  const out = [], d = new Date(today);
+  while (out.length < 6) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    ["10:00 AM", "3:30 PM"].forEach((t) => out.push(`${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · ${t}`));
+  }
+  return out;
+}
+function renderBooking() {
+  const el = $("#booking"), b = state.booking;
+  if (b) {
+    const a = ADVISORS.find((x) => x.id === b.advisor);
+    el.innerHTML = `<div class="booked">
+      <div class="advisor-head"><span class="avatar">${a.initials}</span><div><strong>${esc(a.name)}, ${esc(a.creds)}</strong><span class="muted small">${esc(a.role)}</span></div></div>
+      <p><span class="status good">Booked</span> ${esc(b.slot)} · video call · ${esc(TOPICS[b.topic])}</p>
+      <p class="muted small">${b.share ? "Your LearnFi summary (balances, budget, goals) will be shared with your advisor." : "You chose not to share your LearnFi summary."} Demo booking: no real appointment was made.</p>
+      <div class="form-actions"><button class="btn primary" id="prepBrief">${b.brief ? "Refresh prep notes" : "Prepare with AI"}</button><button class="btn secondary" id="cancelBooking">Cancel booking</button></div>
+      <div id="briefOut" class="ai-output">${b.brief ? renderMarkdown(b.brief) : ""}</div>
+    </div>`;
+    return;
+  }
+  const topic = state.bookTopic || (advisorFit().complex ? "budget" : "investing");
+  const list = ADVISORS.filter((a) => a.topics.includes(topic));
+  el.innerHTML = `
+    <div class="field-row"><label class="field">What do you want help with?
+      <select id="bookTopic">${Object.entries(TOPICS).map(([k, v]) => `<option value="${k}"${k === topic ? " selected" : ""}>${v}</option>`).join("")}</select></label></div>
+    <div class="advisor-cards" role="radiogroup" aria-label="Advisor">${list.map((a, i) => `
+      <label class="advisor-card"><input type="radio" name="advisor" value="${a.id}"${i === 0 ? " checked" : ""}/>
+        <span class="advisor-head"><span class="avatar">${a.initials}</span><span><strong>${esc(a.name)}, ${esc(a.creds)}</strong><span class="muted small">${esc(a.role)}</span></span></span>
+        <span class="small">${esc(a.fee)} · fiduciary when giving advice</span></label>`).join("")}</div>
+    <p class="small" style="margin:12px 0 6px"><strong>Pick a time</strong> (30-minute video call)</p>
+    <div class="slots" role="radiogroup" aria-label="Time">${slots().map((s, i) => `<label class="slot"><input type="radio" name="slot" value="${esc(s)}"${i === 0 ? " checked" : ""}/><span>${esc(s)}</span></label>`).join("")}</div>
+    <label class="consent"><input type="checkbox" id="shareSummary" checked/> Share my LearnFi summary (balances, budget, goals) with the advisor before the call</label>
+    <div class="form-actions"><button class="btn primary" id="bookBtn">Book session</button></div>
+    <p class="muted small">Demo only. Advisors shown are fictional examples of what a bank could offer.</p>`;
+}
+
+const BRIEF_SYSTEM = `You prepare a customer for a meeting with a financial advisor at their bank. Using their account data, write short meeting-prep notes in markdown with exactly these sections:
+## Your snapshot (4-5 bullets with their real numbers)
+## What to ask (5 questions specific to this advisor and topic, including how the advisor is paid and whether they act as a fiduciary)
+## Bring or decide beforehand (3 bullets)
+Keep it under 250 words. Be educational and neutral; don't recommend specific securities or third-party products.`;
+async function prepBrief(btn) {
+  const b = state.booking, a = ADVISORS.find((x) => x.id === b.advisor);
+  btn.disabled = true; btn.textContent = "Preparing…";
+  const out = $("#briefOut");
+  out.innerHTML = `<p class="muted">Reading your accounts…</p>`;
+  try {
+    const text = await aiComplete(BRIEF_SYSTEM, [{ role: "user", content: `Meeting: ${TOPICS[b.topic]} with ${a.name}, ${a.creds} (${a.role}; ${a.fee}).\nMy account data (JSON):\n${JSON.stringify(financialContext())}` }], (t) => { out.innerHTML = renderMarkdown(t); });
+    state.booking.brief = text; save();
+    out.innerHTML = renderMarkdown(text);
+    btn.textContent = "Refresh prep notes";
+  } catch (err) {
+    out.innerHTML = `${err.text ? renderMarkdown(err.text) : ""}<p class="error">${esc(err.message || "Couldn't prepare notes.")}</p>`;
+    btn.textContent = "Prepare with AI";
+  } finally { btn.disabled = false; }
+}
+
 // ---------------------------------------------------------------- global refresh
 function refresh() {
   save();
@@ -860,6 +1149,8 @@ function refresh() {
   renderOverview();
   updateHome();
   renderGoals();
+  renderInvest();
+  renderAdvisors();
   renderAdvice($("#topAdvice"), advice.filter((a) => a.priority !== "good"), 4);
   renderAdvice($("#budgetAdvice"), advice.filter((a) => ["Budget", "Savings", "Emergency fund", "Cash flow", "Trend"].includes(a.tag)));
   const h = state.horizon;
@@ -981,6 +1272,31 @@ $("#quiz").addEventListener("change", (e) => {
   renderQuizResult(); refresh();
 });
 
+// invest
+$("#tab-invest").addEventListener("input", (e) => {
+  const map = { invAge: "age", invRetire: "retireAge", invReturn: "ret" };
+  if (map[e.target.id]) { state.invest[map[e.target.id]] = num(e.target.value); }
+  else if (e.target.id === "riskProfile") { state.invest.profile = e.target.value === suggestedProfile() ? null : e.target.value; }
+  else return;
+  refresh();
+});
+
+// advisors
+$("#tab-advisors").addEventListener("input", (e) => {
+  const map = { feeAmount: "amount", feeMonthly: "monthly", feeYears: "years" };
+  if (map[e.target.id]) { state.feeCalc[map[e.target.id]] = num(e.target.value); save(); renderAdvisors(); $(`#${e.target.id}`).focus(); }
+  else if (e.target.id === "bookTopic") { state.bookTopic = e.target.value; renderBooking(); }
+});
+$("#tab-advisors").addEventListener("click", (e) => {
+  if (e.target.id === "bookBtn") {
+    const advisor = $("input[name=advisor]:checked")?.value, slot = $("input[name=slot]:checked")?.value;
+    if (!advisor || !slot) return;
+    state.booking = { advisor, slot, topic: $("#bookTopic").value, share: $("#shareSummary").checked, brief: null };
+    save(); renderBooking();
+  } else if (e.target.id === "cancelBooking") { state.booking = null; save(); renderBooking(); }
+  else if (e.target.id === "prepBrief") prepBrief(e.target);
+});
+
 // Two-step reset (no blocking dialogs): first click arms, second click within 4s confirms.
 let resetArmed = null;
 $("#resetBtn").addEventListener("click", (e) => {
@@ -1064,6 +1380,16 @@ function financialContext() {
     goals: state.goals.map((g) => ({ name: g.name, type: g.kind, target: goalTarget(g), saved: Math.round(goalSaved(g)), years: num(g.years), horizon: horizonOf(num(g.years)) })),
     home_scenario: { price: num(state.home.price), down_payment: num(state.home.down), rate_pct: num(state.home.rate), term_years: num(state.home.term), monthly_cost_with_tax_insurance: Math.round(m.monthlyAll), current_rent: m.rent },
     money_personality: p ? p.name : "not taken",
+    investments: (() => { const pf = portfolio(), mt = match401k(), mi = monthlyInvesting(); return {
+      age: num(state.invest.age), retire_age: num(state.invest.retireAge), risk_profile: PROFILES[riskProfile()].label,
+      holdings: pf.hs.map((h) => ({ name: h.name, account: h.account.name, type: h.cls, value: h.value, expense_ratio_pct: h.er })),
+      allocation_pct: Object.fromEntries(Object.keys(CLASSES).map((k) => [CLASSES[k].label, +(pf.byClass[k] / pf.total * 100).toFixed(1)])),
+      target_allocation_pct: Object.fromEntries(Object.keys(CLASSES).map((k) => [CLASSES[k].label, PROFILES[riskProfile()].target[k] * 100])),
+      annual_fees: Math.round(pf.fees), monthly_investing: Math.round(mi.ira + mi.k401),
+      k401: mt ? { employee_pct: mt.employeePct, match: `${mt.matchRate * 100}% up to ${mt.matchUpToPct}%`, missed_match_per_year: Math.round(mt.missed), gross_salary: mt.salary } : null,
+    }; })(),
+    advisor_suggestion: advisorFit().rec.join(": "),
+    advisor_booking: state.booking ? { advisor: ADVISORS.find((a) => a.id === state.booking.advisor)?.name, topic: TOPICS[state.booking.topic], when: state.booking.slot } : null,
     advisor_flags: advise().filter((a) => a.priority === "high" || a.priority === "med").map((a) => a.title),
     transactions_csv: "date,merchant,amount,category,account\n" + bank.transactions.map((x) => `${x.date},${x.merchant.replace(/,/g, " ")},${x.amount},${CATS[catOf(x)].label},${acct(x.account).name}`).join("\n"),
   };
@@ -1076,7 +1402,9 @@ Ground advice in this framework, in priority order: (1) a working budget, with 5
 Rules:
 - Use the customer's real numbers: name merchants, months, balances and amounts from the data. Do the arithmetic.
 - Answer the question that was asked first, then add at most one next step.
-- You can't move money or change accounts. Suggest the action and say where in the app to do it (Activity, Monthly Budget, Net Worth & Debt, Mortgage, Goals & Advisor).
+- For investing questions, use their actual holdings, fees, allocation and 401(k) match. Explain trade-offs; don't promise returns.
+- If something needs a professional (complex taxes, estate, insurance needs, a big life decision), say so and point to the Advisors tab, where they can compare advice types or book a session.
+- You can't move money or change accounts. Suggest the action and say where in the app to do it (Activity, Budget, Net Worth, Invest, Mortgage, Goals, Advisors).
 - Stay educational: no specific stocks, funds by ticker or third-party products by brand. Say when something depends on their country or tax situation.
 - If the data doesn't answer the question, say what's missing.
 - Format with short markdown: optional "## " headings, "- " bullets, **bold** for key numbers. Keep answers under about 250 words unless asked for a full plan.`;
@@ -1090,6 +1418,8 @@ const CHIPS = [
   "Build me a 12-month plan",
   "Am I ready to buy a home, or should I keep renting?",
   "How do I start saving for college or grad school?",
+  "Is my investment mix right for my age?",
+  "Do I need a financial advisor, and what kind?",
 ];
 function renderChips() { $("#chatChips").innerHTML = CHIPS.map((c) => `<button type="button" data-chip>${esc(c)}</button>`).join(""); }
 function renderChat(streamingText) {

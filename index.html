@@ -18,10 +18,12 @@
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
       <button role="tab" data-tab="activity">Activity</button>
-      <button role="tab" data-tab="budget">Monthly Budget</button>
-      <button role="tab" data-tab="networth">Net Worth &amp; Debt</button>
+      <button role="tab" data-tab="budget">Budget</button>
+      <button role="tab" data-tab="networth">Net Worth</button>
+      <button role="tab" data-tab="invest">Invest</button>
       <button role="tab" data-tab="home">Mortgage</button>
-      <button role="tab" data-tab="goals">Goals &amp; Advisor</button>
+      <button role="tab" data-tab="goals">Goals</button>
+      <button role="tab" data-tab="advisors">Advisors</button>
       <button role="tab" data-tab="assistant">Assistant</button>
     </nav>
     <button class="btn ghost small" id="resetBtn" title="Clear your edits and restore the demo">Reset demo</button>
@@ -243,6 +245,52 @@
       </div>
     </section>
 
+    <!-- ============ INVEST ============ -->
+    <section id="tab-invest" class="tab-panel" role="tabpanel" hidden>
+      <div class="kpi-grid" id="investKpis"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Asset allocation</h2>
+            <label class="field compact-field">Risk profile
+              <select id="riskProfile">
+                <option value="conservative">Conservative</option>
+                <option value="moderate">Moderate</option>
+                <option value="growth">Growth</option>
+                <option value="aggressive">Aggressive</option>
+              </select>
+            </label>
+          </div>
+          <p class="muted small" id="riskWhy"></p>
+          <div id="allocChart"></div>
+          <div id="rebalance"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Retirement projection</h2><span class="muted small" id="projLabel"></span></div>
+          <div class="field-row">
+            <label class="field">Your age<input type="number" id="invAge" min="16" max="80" /></label>
+            <label class="field">Retire at<input type="number" id="invRetire" min="40" max="80" /></label>
+            <label class="field">Return / yr %<input type="number" id="invReturn" min="0" max="12" step="0.5" /></label>
+          </div>
+          <div id="projChart"></div>
+          <p class="muted small" id="projNote"></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Holdings</h2><span class="muted small">From your linked investment and retirement accounts</span></div>
+        <div class="table-wrap plain"><table class="data-table holdings" id="holdingsTable"></table></div>
+        <div id="feeNote" class="result-box"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Compound growth: why starting early wins</h2>
+          <span class="muted small">Miguel invests $25/mo for 40 yrs; Jasmine waits 10 yrs, then invests $50/mo for 30 yrs (7%/yr)</span></div>
+        <div id="compoundChart"></div>
+      </div>
+    </section>
+
     <!-- ============ MORTGAGE / RENT VS BUY ============ -->
     <section id="tab-home" class="tab-panel" role="tabpanel" hidden>
       <div class="grid-2">
@@ -336,10 +384,58 @@
         <ol id="allAdvice" class="advice-list"></ol>
       </div>
 
+    </section>
+
+    <!-- ============ ADVISORS ============ -->
+    <section id="tab-advisors" class="tab-panel" role="tabpanel" hidden>
+      <div class="card fit-card">
+        <div class="card-head"><h2>Do you need a financial advisor?</h2><span class="tag">Based on your accounts</span></div>
+        <div id="advisorFit"></div>
+      </div>
+
       <div class="card">
-        <div class="card-head"><h2>Compound growth: why starting early wins</h2>
-          <span class="muted small">Miguel invests $25/mo for 40 yrs; Jasmine waits 10 yrs, then invests $50/mo for 30 yrs (7%/yr)</span></div>
-        <div id="compoundChart"></div>
+        <div class="card-head"><h2>Types of advice and what they cost</h2><span class="muted small">Typical US ranges; firms vary</span></div>
+        <div class="table-wrap plain"><table class="compare advisor-types">
+          <thead><tr><th>Option</th><th>How they're paid</th><th>Typical cost</th><th>Fiduciary?</th><th>Good for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Do it yourself</strong> with low-cost index funds</td><td>Fund expense ratios only</td><td>0.03–0.20% / yr</td><td>–</td><td>Simple situations, people who enjoy learning</td></tr>
+            <tr><td><strong>Robo-advisor</strong></td><td>% of assets</td><td>0.25–0.40% / yr</td><td>Usually</td><td>Hands-off investing, small balances, automatic rebalancing</td></tr>
+            <tr><td><strong>Hybrid</strong> (robo + human planner)</td><td>% of assets or subscription</td><td>0.30–0.65% / yr</td><td>Usually</td><td>Automated investing plus occasional planning calls</td></tr>
+            <tr><td><strong>Fee-only planner</strong> (hourly or flat fee)</td><td>Hourly, project or retainer</td><td>$150–400 / hr or $1,000–3,000 per plan</td><td>Yes</td><td>A one-time plan, big decisions (home, college, job change)</td></tr>
+            <tr><td><strong>Assets-under-management advisor</strong></td><td>% of assets managed</td><td>~1% / yr, less above $1M</td><td>Often</td><td>Larger portfolios, complex taxes, ongoing management</td></tr>
+            <tr><td><strong>Commission-based broker or agent</strong></td><td>Commissions on products sold</td><td>Varies, often hidden in the product</td><td>Not always</td><td>Specific products such as insurance; ask how they're paid</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>What fees cost over time</h2></div>
+          <div class="field-row">
+            <label class="field">Amount invested<input type="number" id="feeAmount" step="1000" /></label>
+            <label class="field">Added each month<input type="number" id="feeMonthly" step="25" /></label>
+            <label class="field">Years<input type="number" id="feeYears" min="1" max="50" /></label>
+          </div>
+          <div id="feeCompare"></div>
+          <p class="muted small">Assumes 6% a year before fees. A flat-fee planner's cost doesn't grow with your balance; a percentage fee does.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Questions to ask any advisor</h2></div>
+          <ol class="checklist">
+            <li><strong>Are you a fiduciary 100% of the time, in writing?</strong> A fiduciary must put your interests first.</li>
+            <li><strong>How exactly are you paid?</strong> Fee-only, fee-based (fees plus commissions) or commission. Ask for the total in dollars.</li>
+            <li><strong>What will I pay in total each year?</strong> Advisory fee plus the expense ratios of the funds you'd hold.</li>
+            <li><strong>What are your credentials?</strong> CFP®, CFA or CPA/PFS signal training and an ethics code.</li>
+            <li><strong>Who holds my money?</strong> It should sit with an independent custodian, in your name.</li>
+            <li><strong>Any disciplinary history?</strong> Check FINRA BrokerCheck, the SEC's adviser search (IAPD) and the CFP Board's verify tool.</li>
+          </ol>
+          <p class="muted small">Walk away from guaranteed returns, pressure to decide today, or requests to move money to a personal account.</p>
+        </div>
+      </div>
+
+      <div class="card" id="bookCard">
+        <div class="card-head"><h2>Talk to one of our advisors</h2><span class="tag">Demo booking</span></div>
+        <div id="booking"></div>
       </div>
     </section>
 

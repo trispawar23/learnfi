@@ -4,7 +4,10 @@
 //
 // accounts:     { id, name, mask, kind: checking|savings|credit|loan|investment|retirement,
 //                 balance, role?, apy?, limit?, apr?, minPayment?, dueDay?, debtType?, external? }
+//               investment/retirement accounts add holdings: [{ name, cls: us_stock|intl_stock|bonds|cash|single_stock, value, er (expense ratio %) }]
+//               and a 401(k) adds contribution: { employeePct, matchRate, matchUpToPct }
 // transactions: { id, date: "YYYY-MM-DD", account, merchant, amount (+ in / − out), category|null, transfer }
+// profile:      { age, grossSalary } (from the customer's profile and payroll deposits)
 (function () {
   function rng(seed) {
     return function () {
@@ -24,8 +27,19 @@
       { id: "card", name: "Rewards Credit Card", mask: "3392", kind: "credit", balance: 2412.55, limit: 6000, apr: 24.99, minPayment: 75, dueDay: 26 },
       { id: "auto", name: "Auto Loan", mask: "5520", kind: "loan", debtType: "auto", balance: 9000, apr: 7.5, minPayment: 250 },
       { id: "student", name: "Student Loan", mask: "0912", kind: "loan", debtType: "student", balance: 18000, apr: 5.5, minPayment: 200, external: true },
-      { id: "ira", name: "Roth IRA", mask: "6604", kind: "investment", balance: 4200 },
-      { id: "k401", name: "Employer 401(k)", mask: "2210", kind: "retirement", balance: 12000, external: true },
+      { id: "ira", name: "Roth IRA", mask: "6604", kind: "investment", balance: 4200, holdings: [
+        { name: "Total US Stock Market Index Fund", cls: "us_stock", value: 2600, er: 0.04 },
+        { name: "Total International Stock Index Fund", cls: "intl_stock", value: 600, er: 0.08 },
+        { name: "Growth Opportunities Fund (actively managed)", cls: "us_stock", value: 800, er: 1.12 },
+        { name: "Cash sweep", cls: "cash", value: 200, er: 0 },
+      ] },
+      { id: "k401", name: "Employer 401(k)", mask: "2210", kind: "retirement", balance: 12000, external: true,
+        contribution: { employeePct: 3, matchRate: 1, matchUpToPct: 5 }, holdings: [
+        { name: "S&P 500 Index Fund", cls: "us_stock", value: 6200, er: 0.02 },
+        { name: "ACME Logistics company stock", cls: "single_stock", value: 2600, er: 0 },
+        { name: "US Bond Index Fund", cls: "bonds", value: 1700, er: 0.05 },
+        { name: "Stable Value Fund", cls: "cash", value: 1500, er: 0.3 },
+      ] },
     ];
 
     const transactions = [];
@@ -77,7 +91,7 @@
       add(26, "chk", "PAYMENT TO CREDIT CARD ••3392", -between(480, 560), "card_payment", true);
     }
     transactions.sort((a, b) => b.date.localeCompare(a.date) || Number(b.id.slice(1)) - Number(a.id.slice(1)));
-    return { accounts, transactions, creditScore: 680, asOf: today };
+    return { accounts, transactions, creditScore: 680, profile: { age: 27, grossSalary: 52000 }, asOf: today };
   }
 
   window.LearnFiBank = { load };
