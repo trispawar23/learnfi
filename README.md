@@ -26,7 +26,7 @@ Swap `LearnFiBank.load()` for real API calls and the rest of the app works uncha
 
 ## Navigation
 
-The header shows Overview, Accounts and Activity, a highlighted **Talk to an advisor** button, and a **More** menu with Budget, Net Worth, Invest, Mortgage, Goals, Assistant and Reset demo. On phones the three main tabs move to a bottom tab bar.
+The header has a menu button and the LearnFi logo on the left, a centered pill nav (Overview, Accounts, Activity), and a highlighted **Talk to an advisor** button on the right. The menu holds Budget, Net Worth, Invest, Mortgage, Goals, Assistant and Reset demo. On phones the pill nav floats at the bottom of the screen.
 
 ## What's inside
 

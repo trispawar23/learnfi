@@ -1585,7 +1585,6 @@ function selectTab(name) {
   $$("#moreMenu [data-tab]").forEach((b) => b.classList.toggle("current", b === item));
   $("#moreBtn").classList.toggle("active", !!item);
   $("#advisorCta").classList.toggle("active", name === "advisors");
-  $("#moreLabel").textContent = item ? item.querySelector("span").textContent : "More";
   closeMenu();
   $$(".tab-panel").forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
   try { localStorage.setItem("learnfi.tab", name); } catch { /* ignore */ }

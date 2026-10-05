@@ -11,19 +11,10 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">LearnFi</span>
-    </div>
-    <nav class="tabs" role="tablist" aria-label="Sections">
-      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
-      <button role="tab" data-tab="accounts">Accounts</button>
-      <button role="tab" data-tab="activity">Activity</button>
-    </nav>
-    <button class="advisor-cta" data-tab="advisors" id="advisorCta"><span class="cta-face" aria-hidden="true">PR</span><span class="cta-dot" aria-hidden="true"></span><span class="cta-text">Talk to an advisor</span><span class="cta-short">Advisor</span></button>
+    <div class="topbar-left">
     <div class="more">
-      <button class="more-btn" id="moreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu">
-        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span class="more-label" id="moreLabel">More</span>
+      <button class="more-btn" id="moreBtn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu">
+        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
       </button>
       <div class="more-menu" id="moreMenu" role="menu" hidden>
         <button role="menuitem" data-tab="budget"><span>Budget</span><small>50/30/20 sheet and spending limits</small></button>
@@ -36,6 +27,24 @@
         <button role="menuitem" id="resetBtn" class="danger-item"><span>Reset demo</span><small>Clear your edits</small></button>
       </div>
     </div>
+    <div class="brand">
+      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f6feb"/><stop offset="1" stop-color="#22b8f0"/></linearGradient></defs>
+        <rect width="32" height="32" rx="9" fill="url(#logoGrad)"/>
+        <rect x="8" y="17" width="4" height="7" rx="2" fill="#fff" opacity=".7"/>
+        <rect x="14" y="13" width="4" height="11" rx="2" fill="#fff" opacity=".85"/>
+        <rect x="20" y="9" width="4" height="15" rx="2" fill="#fff"/>
+        <circle cx="22" cy="6.5" r="1.8" fill="#fff"/>
+      </svg>
+      <span class="brand-name">Learn<span class="brand-fi">Fi</span></span>
+    </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="accounts">Accounts</button>
+      <button role="tab" data-tab="activity">Activity</button>
+    </nav>
+    <button class="advisor-cta" data-tab="advisors" id="advisorCta"><span class="cta-text">Talk to an advisor</span><span class="cta-short">Advisor</span></button>
   </header>
 
   <main>
@@ -102,7 +111,7 @@
           <div class="card-head"><h2>Checking until payday</h2><span class="muted small" id="ovRunwayLabel"></span></div>
           <div id="ovRunway"></div>
         </div>
-        <div class="card">
+        <div class="card ov-invest">
           <div class="card-head"><h2>Investments</h2><button class="btn link" data-goto="invest">Details →</button></div>
           <div id="ovInvest"></div>
         </div>
