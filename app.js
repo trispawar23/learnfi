@@ -424,7 +424,7 @@ function renderCompoundChart() {
     svg += `<text x="${x(years) + 8}" y="${y(last) + (s === series[0] ? -4 : 12)}" style="fill:var(--ink);font-weight:600">${money(last)}</text>`;
   });
   svg += `<line id="xhair" class="grid-line" x1="0" x2="0" y1="${padT}" y2="${H - padB}" style="stroke:var(--ink-2);visibility:hidden"/>`;
-  series.forEach((s, i) => { svg += `<circle id="dot${i}" r="4" fill="${s.color}" stroke="#fff" stroke-width="2" style="visibility:hidden"/>`; });
+  series.forEach((s, i) => { svg += `<circle id="dot${i}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="visibility:hidden"/>`; });
   svg += `<rect id="hit" x="${padL}" y="${padT}" width="${W - padL - padR}" height="${H - padT - padB}" fill="transparent"/></svg>`;
   el.className = "chart";
   el.innerHTML = `<div class="legend">${series.map((s) => `<span><i class="line" style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>${svg}
@@ -448,7 +448,7 @@ function renderCreditGauge() {
   const util = num(state.credit.limit) > 0 ? balanceSheet().cardDebt / num(state.credit.limit) : 0;
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>300</span><span>600</span><span>700</span><span>850</span></div>
-    <div class="bar" style="height:10px;position:relative;background:linear-gradient(90deg,#f3c4c0 0 54.5%,#f6dfb5 54.5% 72.7%,#cfe9dc 72.7%)">
+    <div class="bar" style="height:10px;position:relative;background:linear-gradient(90deg,var(--gauge-bad) 0 54.5%,var(--gauge-mid) 54.5% 72.7%,var(--gauge-good) 72.7%)">
       <span style="position:absolute;left:calc(${(t * 100).toFixed(1)}% - 2px);width:4px;top:-4px;height:18px;background:var(--ink);border-radius:2px"></span>
     </div>
     <p style="margin:10px 0 4px"><span class="status ${band[0]}">${score || "–"} · ${band[1]}</span></p>
@@ -748,8 +748,16 @@ $("#quiz").addEventListener("change", (e) => {
   renderQuizResult(); refresh();
 });
 
-$("#resetBtn").addEventListener("click", () => {
-  if (!confirm("Replace your numbers with the sample data?")) return;
+// Two-step reset (no blocking dialogs): first click arms, second click within 4s confirms.
+let resetArmed = null;
+$("#resetBtn").addEventListener("click", (e) => {
+  const btn = e.currentTarget;
+  if (!resetArmed) {
+    btn.textContent = "Click again to reset";
+    resetArmed = setTimeout(() => { resetArmed = null; btn.textContent = "Reset sample"; }, 4000);
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = null; btn.textContent = "Reset sample";
   state = sampleState();
   renderAll();
 });
