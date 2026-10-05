@@ -24,11 +24,15 @@ Everything starts from the bank's own data. `data.js` stands in for the bank's a
 
 Swap `LearnFiBank.load()` for real API calls and the rest of the app works unchanged. Users can override a merchant's category and add cash lines; those edits are stored on top of the feed.
 
+## Navigation
+
+The header shows Overview, Accounts and Activity, a highlighted **Talk to an advisor** button, and a **More** menu with Budget, Net Worth, Invest, Mortgage, Goals, Assistant and Reset demo. On phones the three main tabs move to a bottom tab bar.
+
 ## What's inside
 
 | Tab | What the customer gets |
 | --- | --- |
-| **Overview** | All charts: **Budget check** with Penny the piggy-bank mascot (happy / worried / alarmed) flagging every category that's over its limit or on pace to go over, net worth (own vs owe), monthly income vs needs/wants/savings, 50/30/20 donut, top spending categories, emergency-fund ring, credit-score gauge with utilization, checking balance until payday, investment mix with 401(k) match meter, goal rings, debt payoff bars, and the biggest opportunities in dollars |
+| **Overview** | All charts: **Budget check** with Penny the piggy-bank mascot (happy / worried / alarmed), a month dropdown, a Limits view coloured by status (on track / on pace / over) and a Compare view of this month against any earlier month, net worth (own vs owe), monthly income vs needs/wants/savings, 50/30/20 donut, top spending categories, emergency-fund ring, credit-score gauge with utilization, checking balance until payday, investment mix with 401(k) match meter, goal rings, debt payoff bars, and the biggest opportunities in dollars |
 | **Accounts** | Debit and credit card visuals (masked number, cardholder, expiry), credit card details (current and statement balance, minimum due and due date, available credit, utilization, APRs, last payment, cash back), card controls (lock, online, international, large-purchase alerts), recent card activity, and every account with its number, balance and rate |
 | **Activity** | Transactions with editable categories (applies to every charge from that merchant), auto-detected bills and subscriptions with price-increase alerts, spending by category, **AI categorization** for merchants the bank couldn't categorize |
 | **Budget** | The paper worksheet (Income, Needs 50%, Wants 30%, Savings 20%, Monthly summary), filled automatically from categorized transactions for any month, with over-limit rows flagged. Editable monthly **spending limits** per category, showing this month and last month against each. Click a row to see its transactions; add cash items by hand |

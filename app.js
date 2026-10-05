@@ -60,6 +60,7 @@ function defaultState() {
     cardControls: {},
     selectedCard: null,
     bcMonth: null,
+    bcView: "limits",
     invest: { age: bank.profile.age, retireAge: 65, ret: 6, profile: null },
     feeCalc: { amount: null, monthly: null, years: null },
     booking: null,
@@ -850,10 +851,14 @@ function mascotSVG(mood, size = 120) {
 }
 
 let bcIndex = 0;
+const bcMonth = () => (MONTHS.includes(state.bcMonth) ? state.bcMonth : currentYM);
+// Status colours are the only colours in the Limits view: on track, on pace to go over, over.
+const STATUS_COLOR = { ok: "var(--green)", pace: "var(--amber)", over: "var(--red)" };
+
 function renderBudgetCheck() {
-  const which = state.bcMonth || "current", ym = which === "current" ? currentYM : LAST_FULL;
-  $("#bcLastBtn").textContent = monthName(LAST_FULL, "long").split(" ")[0];
-  $$("[data-bc]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.bc === which)));
+  const ym = bcMonth(), view = state.bcView || "limits", isCur = ym === currentYM;
+  $("#bcMonthSel").innerHTML = MONTHS.map((m) => `<option value="${m}"${m === ym ? " selected" : ""}>${monthName(m)}${m === currentYM ? " (so far)" : ""}</option>`).join("");
+  $$("[data-bcview]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.bcview === view)));
   const { st, flags, mood } = budgetFlags(ym);
   bcIndex = flags.length ? bcIndex % flags.length : 0;
   $("#bcMascot").innerHTML = mascotSVG(mood, 132);
@@ -861,20 +866,56 @@ function renderBudgetCheck() {
   const f = flags[bcIndex];
   $("#bcBubble").innerHTML = f
     ? `<strong>${f.level === "over" ? "Over budget" : "Heads up"}</strong> ${esc(f.text)}${flags.length > 1 ? ` <span class="bubble-count">${bcIndex + 1} of ${flags.length} · tap Penny for the next</span>` : ""}`
-    : `<strong>Nice!</strong> Every category is within its limit${which === "current" ? " so far this month" : ` in ${monthName(LAST_FULL, "long")}`}.`;
-  $("#bcBars").innerHTML = st.filter((x) => x.spent > 0 || x.status !== "ok").map((x) => {
-    const scale = Math.max(x.limit, x.spent, 1) * 1.05;
-    const color = x.status === "over" ? "var(--red)" : x.status === "pace" ? "var(--amber)" : x.bucket === "needs" ? "var(--s-needs)" : "var(--s-wants)";
-    return `<li class="${x.status} ${f && f.cat === x.cat ? "focus" : ""}" ${tipAttr(`<strong>${esc(x.label)}</strong><br>Spent <b>${money(x.spent)}</b> of ${money(x.limit)}${x.frac < 1 && !LUMPY.includes(x.cat) ? `<br>Expected by today: ${money(x.expected)}` : ""}${x.status === "over" ? `<br>Over by <b>${money(x.over)}</b>` : x.status === "pace" ? `<br>On pace for ${money(x.projected)}` : ""}`)}>
-      <span class="lbl">${esc(x.label)}</span>
-      <span class="track"><span style="width:${(x.spent / scale) * 100}%;background:${color}"></span><i class="lim" style="left:${(x.limit / scale) * 100}%"></i>${x.frac < 1 && !LUMPY.includes(x.cat) ? `<i class="pace" style="left:${(x.expected / scale) * 100}%"></i>` : ""}</span>
-      <span class="amt">${money(x.spent)} <small>/ ${money(x.limit)}</small></span>
-      <span class="flag">${x.status === "over" ? "Over" : x.status === "pace" ? "On pace to go over" : ""}</span></li>`;
-  }).join("");
+    : `<strong>Nice!</strong> Every category is within its limit ${isCur ? "so far this month" : `in ${monthName(ym)}`}.`;
+
+  $("#bcBars").hidden = view !== "limits";
+  $("#bcCompare").hidden = view !== "compare";
+  if (view === "limits") {
+    $("#bcBars").innerHTML = st.filter((x) => x.spent > 0 || x.status !== "ok").map((x) => {
+      const scale = Math.max(x.limit, x.spent, 1) * 1.05, paced = x.frac < 1 && !LUMPY.includes(x.cat);
+      return `<li class="${x.status} ${f && f.cat === x.cat ? "focus" : ""}" ${tipAttr(`<strong>${esc(x.label)}</strong><br>Spent <b>${money(x.spent)}</b> of ${money(x.limit)}${paced ? `<br>Expected by today: ${money(x.expected)}` : ""}${x.status === "over" ? `<br>Over by <b>${money(x.over)}</b>` : x.status === "pace" ? `<br>On pace for ${money(x.projected)}` : ""}`)}>
+        <span class="lbl">${esc(x.label)}<span class="flag">${x.status === "over" ? `Over by ${money(x.over)}` : x.status === "pace" ? "On pace to go over" : ""}</span></span>
+        <span class="track"><span style="width:${(x.spent / scale) * 100}%;background:${STATUS_COLOR[x.status]}"></span><i class="lim" style="left:${(x.limit / scale) * 100}%"></i>${paced ? `<i class="pace" style="left:${(x.expected / scale) * 100}%"></i>` : ""}</span>
+        <span class="amt">${money(x.spent)} <small>of ${money(x.limit)}</small></span></li>`;
+    }).join("");
+    $("#bcNote").innerHTML = `${legend([{ label: "On track", color: STATUS_COLOR.ok }, { label: "On pace to go over", color: STATUS_COLOR.pace }, { label: "Over", color: STATUS_COLOR.over }, { label: "Limit", color: "var(--ink)", cls: "tick-key" }])}${isCur ? "The thin grey tick marks where you'd expect to be by today. " : ""}<button class="btn link" data-goto="budget">Edit limits →</button>`;
+  } else {
+    renderBudgetCompare(ym);
+  }
 }
+
+// Compare view: this month (so far, plus where it's heading) against the chosen month, per category, with the limit.
+function renderBudgetCompare(ym) {
+  const other = ym === currentYM ? LAST_FULL : ym;
+  const cur = Object.fromEntries(budgetStatus(currentYM).map((x) => [x.cat, x]));
+  const oth = Object.fromEntries(budgetStatus(other).map((x) => [x.cat, x]));
+  const cats = [...new Set([...Object.keys(cur), ...Object.keys(oth)])].filter((k) => (cur[k]?.spent || 0) + (oth[k]?.spent || 0) > 0)
+    .sort((a, b) => Math.max(oth[b]?.spent || 0, cur[b]?.projected || 0) - Math.max(oth[a]?.spent || 0, cur[a]?.projected || 0));
+  const W = 760, rowH = 40, padL = 150, padR = 120, H = cats.length * rowH + 8;
+  const max = Math.max(...cats.map((k) => Math.max(cur[k]?.projected || 0, oth[k]?.spent || 0, limitOf(k) || 0)), 1) * 1.05;
+  const x = (v) => padL + (v / max) * (W - padL - padR);
+  const curName = monthName(currentYM, "short").split(" ")[0], othName = monthName(other, "short").split(" ")[0];
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Spending by category: ${curName} so far versus ${othName}">`;
+  cats.forEach((k, i) => {
+    const y = i * rowH + 4, c = cur[k] || { spent: 0, projected: 0 }, o = oth[k] || { spent: 0 }, lim = limitOf(k);
+    svg += `<text class="row-label" x="${padL - 12}" y="${y + 19}" text-anchor="end">${esc(CATS[k].label)}</text>`;
+    if (c.projected > c.spent) svg += `<rect x="${padL}" y="${y + 3}" width="${Math.max(0, x(c.projected) - padL)}" height="11" rx="5.5" fill="var(--s-needs)" opacity=".22" ${tipAttr(`<strong>${esc(CATS[k].label)}</strong><br>${curName} on pace for <b>${money(c.projected)}</b>`)}/>`;
+    svg += `<rect x="${padL}" y="${y + 3}" width="${Math.max(2, x(c.spent) - padL)}" height="11" rx="5.5" fill="var(--s-needs)" ${tipAttr(`<strong>${esc(CATS[k].label)}</strong><br>${curName} so far <b>${money(c.spent)}</b>${c.projected > c.spent ? `<br>On pace for ${money(c.projected)}` : ""}<br>Limit ${money(lim)}`)}/>`;
+    svg += `<rect x="${padL}" y="${y + 17}" width="${Math.max(2, x(o.spent) - padL)}" height="11" rx="5.5" fill="var(--debt-2)" ${tipAttr(`<strong>${esc(CATS[k].label)}</strong><br>${othName} <b>${money(o.spent)}</b> · limit ${money(lim)}${o.spent > lim + 0.5 ? `<br>Over by <b>${money(o.spent - lim)}</b>` : ""}`)}/>`;
+    if (lim > 0) svg += `<line x1="${x(lim)}" x2="${x(lim)}" y1="${y}" y2="${y + 31}" stroke="var(--ink)" stroke-width="2"/>`;
+    svg += `<text class="val" x="${W - padR + 12}" y="${y + 13}">${money(c.spent)}${c.projected > c.spent + 1 ? ` → ${money(c.projected)}` : ""}</text>`;
+    svg += `<text class="val" x="${W - padR + 12}" y="${y + 27}" style="fill:var(--muted)">${money(o.spent)}</text>`;
+  });
+  svg += `</svg>`;
+  $("#bcCompare").innerHTML = legend([{ label: `${curName} so far`, color: "var(--s-needs)" }, { label: `${curName} on pace`, color: "color-mix(in srgb, var(--s-needs) 30%, transparent)" }, { label: othName, color: "var(--debt-2)" }, { label: "Limit", color: "var(--ink)", cls: "tick-key" }]) + svg;
+  const tc = budgetStatus(currentYM).reduce((s, x) => s + x.projected, 0), to = budgetStatus(other).reduce((s, x) => s + x.spent, 0);
+  $("#bcNote").innerHTML = `${curName} is on pace for <b>${money(tc)}</b> of needs and wants, ${tc > to ? `<span class="status warn">${money(tc - to)} more</span>` : `<span class="status good">${money(to - tc)} less</span>`} than ${monthName(other)} (${money(to)}). Pick another month above to compare. <button class="btn link" data-goto="budget">Edit limits →</button>`;
+}
+
+$("#bcMonthSel").addEventListener("change", (e) => { state.bcMonth = e.target.value; bcIndex = 0; save(); renderBudgetCheck(); });
 $("#tab-overview").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-bc]");
-  if (b) { state.bcMonth = b.dataset.bc; bcIndex = 0; save(); renderBudgetCheck(); return; }
+  const v = e.target.closest("[data-bcview]");
+  if (v) { state.bcView = v.dataset.bcview; save(); renderBudgetCheck(); return; }
   if (e.target.closest("#bcMascot")) { bcIndex++; renderBudgetCheck(); const m = $("#bcMascot svg"); m?.classList.remove("poke"); void m?.getBoundingClientRect(); m?.classList.add("poke"); }
 });
 
@@ -907,7 +948,7 @@ function maybeShowMascotToast() {
   $("#toastText").textContent = (cur.flags.includes(pick) ? "" : `In ${monthName(LAST_FULL, "long")}: `) + pick.text;
   $("#mascotToast").hidden = false;
   try { sessionStorage.setItem("learnfi.toast", "1"); } catch { /* ignore */ }
-  state.bcMonth = cur.flags.includes(pick) ? "current" : "last";
+  state.bcMonth = cur.flags.includes(pick) ? currentYM : LAST_FULL;
 }
 $("#toastClose").addEventListener("click", () => { $("#mascotToast").hidden = true; });
 $("#toastGo").addEventListener("click", () => { $("#mascotToast").hidden = true; selectTab("overview"); renderBudgetCheck(); $("#budgetCheck").scrollIntoView({ behavior: "smooth", block: "center" }); });
@@ -940,10 +981,12 @@ function renderOvAccounts() {
   $("#ovAccounts").innerHTML = bank.accounts.map((a) => {
     const debt = a.kind === "credit" || a.kind === "loan";
     const sub = a.kind === "credit" ? `${money(a.limit - a.balance)} available` : a.kind === "loan" ? `${a.apr}% APR` : a.apy ? `${a.apy}% APY` : KIND_LABEL[a.kind];
-    if (a.card) return `<button class="mini-card ${a.card.type}" data-open-card="${a.id}" ${tipAttr(`<strong>${esc(a.name)}</strong><br>Card ending ${a.card.last4} · ${ctrl(a.id).locked ? "locked" : "active"}`)}>
-      <span class="mc-top">${a.card.type === "credit" ? "Credit" : "Debit"} ••${a.card.last4}${ctrl(a.id).locked ? " · locked" : ""}</span>
-      <span class="mc-bal">${debt ? "−" : ""}${cents(a.balance)}</span><span class="mc-sub">${esc(a.name)} · ${sub}</span></button>`;
-    return `<div class="mini-acct ${debt ? "debt" : ""}"><span class="mc-top">${KIND_LABEL[a.kind]} ••${a.mask}</span><span class="mc-bal">${debt ? "−" : ""}${cents(a.balance)}</span><span class="mc-sub">${esc(a.name)} · ${sub}</span></div>`;
+    const top = `<span class="mc-top">${a.card ? `<i class="card-glyph" aria-hidden="true"></i>` : ""}${a.card ? `${a.card.type === "credit" ? "Credit" : "Debit"} ••${a.card.last4}` : `${KIND_LABEL[a.kind]} ••${a.mask}`}${a.card && ctrl(a.id).locked ? " · locked" : ""}</span>`;
+    const inner = `${top}<span class="mc-bal">${debt ? "−" : ""}${cents(a.balance)}</span><span class="mc-sub">${esc(a.name)} · ${sub}</span>`;
+    // Every account uses the same tile; payment cards are marked by the card glyph and open card details.
+    return a.card
+      ? `<button class="mini-acct clickable ${debt ? "debt" : ""}" data-open-card="${a.id}" ${tipAttr(`<strong>${esc(a.name)}</strong><br>Card ending ${a.card.last4} · ${ctrl(a.id).locked ? "locked" : "active"}`)}>${inner}</button>`
+      : `<div class="mini-acct ${debt ? "debt" : ""}">${inner}</div>`;
   }).join("");
 }
 
@@ -1254,7 +1297,7 @@ const CLASSES = {
   us_stock: { label: "US stocks", color: "var(--s-needs)" },
   intl_stock: { label: "International stocks", color: "var(--s-savings)" },
   bonds: { label: "Bonds", color: "var(--s-wants)" },
-  cash: { label: "Cash & stable value", color: "var(--s-cash)" },
+  cash: { label: "Cash & stable value", color: "var(--debt-2)" },
 };
 const classOf = (h) => (h.cls === "single_stock" ? "us_stock" : h.cls);
 const PROFILES = {
@@ -1538,11 +1581,30 @@ function refresh() {
 // ---------------------------------------------------------------- events
 function selectTab(name) {
   $$(".tabs [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  const item = $(`#moreMenu [data-tab="${name}"]`);
+  $$("#moreMenu [data-tab]").forEach((b) => b.classList.toggle("current", b === item));
+  $("#moreBtn").classList.toggle("active", !!item);
+  $("#advisorCta").classList.toggle("active", name === "advisors");
+  $("#moreLabel").textContent = item ? item.querySelector("span").textContent : "More";
+  closeMenu();
   $$(".tab-panel").forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
   try { localStorage.setItem("learnfi.tab", name); } catch { /* ignore */ }
   window.scrollTo({ top: 0 });
 }
-$$(".tabs [role=tab]").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+$$(".tabs [role=tab], #moreMenu [data-tab], #advisorCta").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+
+// Overflow ("More") menu
+function openMenu() { $("#moreMenu").hidden = false; $("#moreBtn").setAttribute("aria-expanded", "true"); $("#moreMenu [role=menuitem]").focus(); }
+function closeMenu() { if (!$("#moreMenu").hidden) { $("#moreMenu").hidden = true; $("#moreBtn").setAttribute("aria-expanded", "false"); } }
+$("#moreBtn").addEventListener("click", (e) => { e.stopPropagation(); $("#moreMenu").hidden ? openMenu() : closeMenu(); });
+document.addEventListener("click", (e) => { if (!e.target.closest(".more")) closeMenu(); });
+document.addEventListener("keydown", (e) => {
+  if ($("#moreMenu").hidden) return;
+  const items = $$("#moreMenu [role=menuitem]"), i = items.indexOf(document.activeElement);
+  if (e.key === "Escape") { closeMenu(); $("#moreBtn").focus(); }
+  else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+});
 $$("[data-goto]").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.goto)));
 
 // activity
@@ -1679,11 +1741,13 @@ let resetArmed = null;
 $("#resetBtn").addEventListener("click", (e) => {
   const btn = e.currentTarget;
   if (!resetArmed) {
-    btn.textContent = "Click again to reset";
-    resetArmed = setTimeout(() => { resetArmed = null; btn.textContent = "Reset demo"; }, 4000);
+    e.stopPropagation(); // keep the menu open for the confirming click
+    btn.querySelector("span").textContent = "Click again to reset";
+    resetArmed = setTimeout(() => { resetArmed = null; btn.querySelector("span").textContent = "Reset demo"; }, 4000);
     return;
   }
-  clearTimeout(resetArmed); resetArmed = null; btn.textContent = "Reset demo";
+  clearTimeout(resetArmed); resetArmed = null; btn.querySelector("span").textContent = "Reset demo";
+  closeMenu();
   state = defaultState();
   renderAll();
 });

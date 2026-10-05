@@ -19,15 +19,23 @@
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
       <button role="tab" data-tab="accounts">Accounts</button>
       <button role="tab" data-tab="activity">Activity</button>
-      <button role="tab" data-tab="budget">Budget</button>
-      <button role="tab" data-tab="networth">Net Worth</button>
-      <button role="tab" data-tab="invest">Invest</button>
-      <button role="tab" data-tab="home">Mortgage</button>
-      <button role="tab" data-tab="goals">Goals</button>
-      <button role="tab" data-tab="advisors">Advisors</button>
-      <button role="tab" data-tab="assistant">Assistant</button>
     </nav>
-    <button class="btn ghost small" id="resetBtn" title="Clear your edits and restore the demo">Reset demo</button>
+    <button class="advisor-cta" data-tab="advisors" id="advisorCta"><span class="cta-face" aria-hidden="true">PR</span><span class="cta-dot" aria-hidden="true"></span><span class="cta-text">Talk to an advisor</span><span class="cta-short">Advisor</span></button>
+    <div class="more">
+      <button class="more-btn" id="moreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu">
+        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span class="more-label" id="moreLabel">More</span>
+      </button>
+      <div class="more-menu" id="moreMenu" role="menu" hidden>
+        <button role="menuitem" data-tab="budget"><span>Budget</span><small>50/30/20 sheet and spending limits</small></button>
+        <button role="menuitem" data-tab="networth"><span>Net Worth</span><small>Assets, debts and payoff plan</small></button>
+        <button role="menuitem" data-tab="invest"><span>Invest</span><small>Portfolio, 401(k) and retirement</small></button>
+        <button role="menuitem" data-tab="home"><span>Mortgage</span><small>Payment and rent vs buy</small></button>
+        <button role="menuitem" data-tab="goals"><span>Goals</span><small>SMART goals and all advice</small></button>
+        <button role="menuitem" data-tab="assistant"><span>Assistant</span><small>Ask AI about your money</small></button>
+        <hr />
+        <button role="menuitem" id="resetBtn" class="danger-item"><span>Reset demo</span><small>Clear your edits</small></button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -39,14 +47,19 @@
           <div class="bc-main">
             <div class="card-head">
               <h2>Budget check</h2>
-              <div class="seg" role="radiogroup" aria-label="Month">
-                <button data-bc="current" aria-pressed="true">This month so far</button>
-                <button data-bc="last" aria-pressed="false" id="bcLastBtn">Last month</button>
+              <div class="bc-controls">
+                <label class="sr-only" for="bcMonthSel">Month</label>
+                <select id="bcMonthSel"></select>
+                <div class="seg" role="radiogroup" aria-label="View">
+                  <button data-bcview="limits" aria-pressed="true">Limits</button>
+                  <button data-bcview="compare" aria-pressed="false">Compare months</button>
+                </div>
               </div>
             </div>
             <div class="speech" id="bcBubble" aria-live="polite"></div>
             <ul class="limit-bars" id="bcBars"></ul>
-            <p class="muted small">Bars show spending against your limit; the tick marks where you'd expect to be by today. <button class="btn link" data-goto="budget">Edit limits →</button></p>
+            <div class="bc-compare chart" id="bcCompare" hidden></div>
+            <p class="muted small" id="bcNote"></p>
           </div>
         </div>
         <div class="card span-4">
