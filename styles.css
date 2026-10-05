@@ -90,7 +90,6 @@ h2 { font-size: 17px; font-weight: 600; }
 }
 .brand-mark::before { content: "L"; }
 .brand-name { font-weight: 700; font-size: 18px; letter-spacing: .2px; }
-.brand-name small { font-weight: 400; opacity: .8; font-size: 14px; }
 .tabs { display: flex; gap: 2px; overflow-x: auto; flex: 1; scrollbar-width: none; }
 .tabs button {
   background: none; border: 0; color: #c9d6ea; font: inherit; font-weight: 500;
@@ -418,7 +417,7 @@ ul.tight { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 @media (max-width: 600px) {
   main { padding: 16px; }
   .topbar { padding: 0 16px; gap: 12px; }
-  .brand-name small, #resetBtn { display: none; }
+  #resetBtn { display: none; }
   .tabs button { padding: 21px 10px 19px; }
   .kpi-grid { grid-template-columns: minmax(0, 1fr); }
   .field-row { flex-direction: column; }
