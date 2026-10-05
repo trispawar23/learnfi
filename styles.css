@@ -132,7 +132,6 @@ h2 { font-size: 16px; font-weight: 700; }
 
 /* overflow menu */
 .more { position: relative; flex-shrink: 0; }
-.logo-mark { width: 32px; height: 32px; display: block; filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--blue) 30%, transparent)); }
 .brand-fi { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .more-btn { font: inherit; display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
 .more-btn:hover { border-color: var(--ink-2); }
