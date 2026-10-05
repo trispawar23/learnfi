@@ -28,9 +28,9 @@ Swap `LearnFiBank.load()` for real API calls and the rest of the app works uncha
 
 | Tab | What the customer gets |
 | --- | --- |
-| **Overview** | Linked account balances, net worth, last month's income, savings and 50/30/20 split, emergency-fund months, credit score, bills due before the next paycheck with projected checking balance, top advice |
+| **Overview** | All charts: **Budget check** with Penny the piggy-bank mascot (happy / worried / alarmed) flagging every category that's over its limit or on pace to go over, net worth (own vs owe), monthly income vs needs/wants/savings, 50/30/20 donut, top spending categories, emergency-fund ring, credit-score gauge with utilization, checking balance until payday, investment mix with 401(k) match meter, goal rings, debt payoff bars, and the biggest opportunities in dollars |
 | **Activity** | Transactions with editable categories (applies to every charge from that merchant), auto-detected bills and subscriptions with price-increase alerts, spending by category, **AI categorization** for merchants the bank couldn't categorize |
-| **Monthly Budget** | The paper worksheet (Income, Needs 50%, Wants 30%, Savings 20%, Monthly summary), filled automatically from categorized transactions for any month. Click a row to see its transactions; add cash items by hand |
+| **Budget** | The paper worksheet (Income, Needs 50%, Wants 30%, Savings 20%, Monthly summary), filled automatically from categorized transactions for any month, with over-limit rows flagged. Editable monthly **spending limits** per category, showing this month and last month against each. Click a row to see its transactions; add cash items by hand |
 | **Net Worth & Debt** | Linked assets and liabilities plus manual items (car, debts held elsewhere), avalanche vs snowball payoff using real APRs and minimums, credit score and utilization |
 | **Invest** | Holdings from the IRA and 401(k) with expense ratios and yearly cost, current vs target allocation for a suggested risk profile (from years to retirement and money personality) with rebalancing steps, 401(k) match check, retirement projection with and without the full match, high-fee and single-stock concentration flags, and the compound-growth story |
 | **Mortgage** | Payment calculator and the course's rent-vs-buy comparison, using the rent detected in checking |
@@ -40,7 +40,7 @@ Swap `LearnFiBank.load()` for real API calls and the rest of the app works uncha
 
 ### The advisor (rules)
 
-`advise()` in `app.js` follows the course's priority order using real account data: cash flow (overspending, low checking before payday), emergency fund (with ETA from the actual savings transfer), high-interest debt and card interest actually paid, credit utilization and score, the 50/30/20 split, spending trends versus the prior two months, subscription price increases, uncategorized spending, goal feasibility and where each goal's money should live, investing readiness, 401(k) match, fund fees, concentration and allocation drift, when to consider an advisor, insurance and scam awareness. Many items have a one-click follow-up that opens the right tab or asks the assistant.
+`advise()` in `app.js` follows the course's priority order using real account data: cash flow (overspending, low checking before payday), categories over their limits this month and last, emergency fund (with ETA from the actual savings transfer), high-interest debt and card interest actually paid, credit utilization and score, the 50/30/20 split, spending trends versus the prior two months, subscription price increases, uncategorized spending, goal feasibility and where each goal's money should live, investing readiness, 401(k) match, fund fees, concentration and allocation drift, when to consider an advisor, insurance and scam awareness. Many items have a one-click follow-up that opens the right tab or asks the assistant.
 
 ### AI
 

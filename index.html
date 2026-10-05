@@ -32,50 +32,75 @@
   <main>
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tab-panel" role="tabpanel">
-      <div class="hero">
-        <div>
-          <p class="eyebrow">Your money at a glance</p>
-          <h1>Good to see you, <span id="heroName">Alex</span>.</h1>
-          <p class="muted"><span class="live-dot" aria-hidden="true"></span> <span id="syncLine"></span></p>
-        </div>
-        <div class="hero-number">
-          <span class="label">Net worth</span>
-          <span class="value" id="kpiNetWorth">$0</span>
-          <span class="sub" id="kpiNetWorthSub"></span>
-        </div>
-      </div>
-
-      <div class="account-strip" id="accountStrip"></div>
-
-      <div class="kpi-grid">
-        <div class="kpi"><span class="label" id="kpiIncomeLabel">Take-home income</span><span class="value" id="kpiIncome"></span><span class="sub" id="kpiIncomeSub"></span></div>
-        <div class="kpi"><span class="label">Saved last month</span><span class="value" id="kpiSavings"></span><span class="sub" id="kpiSavingsSub"></span></div>
-        <div class="kpi"><span class="label">Emergency fund</span><span class="value" id="kpiEmergency"></span><span class="sub" id="kpiEmergencySub"></span></div>
-        <div class="kpi"><span class="label">Total debt</span><span class="value" id="kpiDebt"></span><span class="sub" id="kpiDebtSub"></span></div>
-        <div class="kpi"><span class="label">Estimated mortgage payment</span><span class="value" id="kpiMortgage"></span><span class="sub" id="kpiMortgageSub"></span></div>
-        <div class="kpi"><span class="label">Credit score</span><span class="value" id="kpiCredit"></span><span class="sub" id="kpiCreditSub"></span></div>
-      </div>
-
-      <div class="grid-2">
-        <div class="stack">
-          <div class="card">
+      <div class="ov-grid">
+        <div class="card span-4 budget-check" id="budgetCheck">
+          <button class="bc-mascot" id="bcMascot" type="button" aria-label="Next budget flag"></button>
+          <div class="bc-main">
             <div class="card-head">
-              <h2>50 / 30 / 20 check</h2>
-              <span class="muted small" id="splitMonthLabel"></span>
+              <h2>Budget check</h2>
+              <div class="seg" role="radiogroup" aria-label="Month">
+                <button data-bc="current" aria-pressed="true">This month so far</button>
+                <button data-bc="last" aria-pressed="false" id="bcLastBtn">Last month</button>
+              </div>
             </div>
-            <div id="splitChart"></div>
+            <div class="speech" id="bcBubble" aria-live="polite"></div>
+            <ul class="limit-bars" id="bcBars"></ul>
+            <p class="muted small">Bars show spending against your limit; the tick marks where you'd expect to be by today. <button class="btn link" data-goto="budget">Edit limits →</button></p>
           </div>
-          <div class="card">
-            <div class="card-head"><h2>Coming up before payday</h2><span class="muted small" id="paydayLabel"></span></div>
-            <ul class="upcoming" id="upcomingList"></ul>
+        </div>
+        <div class="card ov-networth span-2">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Net worth</p>
+              <div class="big-number" id="ovNetWorth"></div>
+              <p class="muted small"><span class="live-dot" aria-hidden="true"></span> <span id="syncLine"></span></p>
+            </div>
           </div>
+          <div id="ovBalance"></div>
+        </div>
+        <div class="card span-2">
+          <div class="card-head"><h2>Money in vs money out</h2><span class="muted small">By month, from your transactions</span></div>
+          <div id="ovCashflow"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>50 / 30 / 20</h2><span class="muted small" id="ovSplitLabel"></span></div>
+          <div id="ovSplit"></div>
         </div>
         <div class="card">
-          <div class="card-head">
-            <h2>Top advice</h2>
-            <button class="btn link" data-goto="goals">See all →</button>
-          </div>
-          <ol id="topAdvice" class="advice-list compact"></ol>
+          <div class="card-head"><h2>Where it went</h2><span class="muted small" id="ovSpendLabel"></span></div>
+          <div id="ovSpend"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Emergency fund</h2><span class="muted small">Target 3–6 months</span></div>
+          <div id="ovEmergency"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Credit score</h2><span class="muted small">300–850</span></div>
+          <div id="ovCredit"></div>
+        </div>
+
+        <div class="card span-3">
+          <div class="card-head"><h2>Checking until payday</h2><span class="muted small" id="ovRunwayLabel"></span></div>
+          <div id="ovRunway"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Investments</h2><button class="btn link" data-goto="invest">Details →</button></div>
+          <div id="ovInvest"></div>
+        </div>
+
+        <div class="card span-2">
+          <div class="card-head"><h2>Goals</h2><button class="btn link" data-goto="goals">Manage →</button></div>
+          <div id="ovGoals" class="goal-rings"></div>
+        </div>
+        <div class="card span-2">
+          <div class="card-head"><h2>Debt payoff</h2><span class="muted small" id="ovDebtLabel"></span></div>
+          <div id="ovDebt"></div>
+        </div>
+
+        <div class="card span-4">
+          <div class="card-head"><h2>Biggest opportunities</h2><button class="btn link" data-goto="goals">All advice →</button></div>
+          <div id="ovActions" class="action-tiles"></div>
         </div>
       </div>
     </section>
@@ -175,6 +200,11 @@
           </div>
         </div>
         <p class="sheet-note">Rows marked <span class="chip-auto">auto</span> come from categorized transactions. Click one to see them. Card payments between your own accounts are left out so nothing counts twice.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Spending limits</h2><span class="muted small">Set a monthly limit for each category. We flag it when you go over or are on pace to.</span></div>
+        <div class="table-wrap plain"><table class="data-table limits-table" id="limitsTable"></table></div>
       </div>
 
       <div class="card">
@@ -469,6 +499,10 @@
     Prototype with demo account data. Not financial advice. Concepts adapted from Khan Academy's free Financial Literacy course.
   </footer>
 
+  <div class="mascot-toast" id="mascotToast" hidden>
+    <div class="mascot-toast-bubble"><button class="icon-btn" id="toastClose" aria-label="Dismiss">×</button><p id="toastText"></p><button class="btn link" id="toastGo">Show me →</button></div>
+    <div id="toastMascot"></div>
+  </div>
   <div id="tooltip" class="tooltip" role="status" hidden></div>
   <script src="data.js"></script>
   <script type="module" src="app.js"></script>

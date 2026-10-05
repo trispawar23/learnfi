@@ -56,6 +56,8 @@ function defaultState() {
     quiz: {},
     horizon: "all",
     budgetMonth: null,
+    limits: {},
+    bcMonth: null,
     invest: { age: bank.profile.age, retireAge: 65, ret: 6, profile: null },
     feeCalc: { amount: null, monthly: null, years: null },
     booking: null,
@@ -357,6 +359,11 @@ function advise() {
     add({ priority: "low", tag: "Credit", horizons: ["medium"], title: `Push your ${score} score into the 700s before a big loan`, body: "On-time payments, low utilization and keeping old accounts open make the difference. A car loan or mortgage in the high 700s costs much less.", why: "600–700 is decent but means higher interest rates." });
   }
 
+  // Category limits
+  const overNow = budgetStatus(currentYM).filter((x) => x.status !== "ok"), overLast = budgetStatus(LAST_FULL).filter((x) => x.status === "over");
+  if (overNow.length) add({ priority: overNow.some((x) => x.status === "over") ? "high" : "med", tag: "Budget", horizons: ["short"], title: `${overNow.length} categor${overNow.length > 1 ? "ies are" : "y is"} over or on pace to go over this month`, body: overNow.map((x) => `${x.label}: ${money(x.spent)} of ${money(x.limit)}`).join("; ") + ".", action: { label: "See budget check", tab: "overview" }, why: "Catching it early in the month leaves time to adjust." });
+  if (overLast.length) add({ priority: "med", tag: "Budget", horizons: ["short"], title: `You went over budget in ${overLast.length} categor${overLast.length > 1 ? "ies" : "y"} in ${monthLabel}`, body: overLast.map((x) => `${x.label} by ${money(x.over)}`).join(", ") + ". Raise the limit if it was unrealistic, or plan a cut this month.", action: { label: "Edit limits", tab: "budget" }, why: "A budget only works if the limits match real life." });
+
   // 50/30/20 from real spending
   const needsPct = t.needs / t.income, wantsPct = t.wants / t.income, savePct = t.savings / t.income;
   if (needsPct > 0.5) {
@@ -495,44 +502,6 @@ function showTip(html, x, y) {
 function hideTip() { tip.hidden = true; }
 
 // ---------------------------------------------------------------- charts
-function renderSplitChart() {
-  const t = totals(LAST_FULL), el = $("#splitChart");
-  $("#splitMonthLabel").textContent = `${monthName(LAST_FULL)} · from your transactions`;
-  const rows = [
-    { label: "Needs", color: "var(--s-needs)", v: t.needs, target: 0.5 },
-    { label: "Wants", color: "var(--s-wants)", v: t.wants, target: 0.3 },
-    { label: "Savings", color: "var(--s-savings)", v: t.savings, target: 0.2 },
-  ];
-  const W = 520, rowH = 44, padL = 70, padR = 110, H = rows.length * rowH + 26;
-  const maxPct = Math.max(0.6, ...rows.map((r) => (t.income ? r.v / t.income : 0))) * 1.05;
-  const x = (p) => padL + (p / maxPct) * (W - padL - padR);
-  const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1].filter((p) => p <= maxPct);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Needs, wants and savings as a share of income compared with 50/30/20 targets">`;
-  ticks.forEach((p) => { svg += `<line class="grid-line" x1="${x(p)}" x2="${x(p)}" y1="0" y2="${H - 22}"/><text class="axis-label" x="${x(p)}" y="${H - 6}" text-anchor="middle">${pct(p)}</text>`; });
-  rows.forEach((r, i) => {
-    const share = t.income ? r.v / t.income : 0, y = i * rowH + 10, bh = 20;
-    svg += `<text x="${padL - 10}" y="${y + bh / 2 + 4}" text-anchor="end" style="fill:var(--ink);font-weight:600">${r.label}</text>`;
-    svg += `<path d="${barPath(padL, y, Math.max(0, x(share) - padL), bh, 4)}" fill="${r.color}"/>`;
-    svg += `<line class="target-tick" x1="${x(r.target)}" x2="${x(r.target)}" y1="${y - 4}" y2="${y + bh + 4}"/>`;
-    svg += `<text x="${Math.max(x(share), x(r.target)) + 8}" y="${y + bh / 2 + 4}" style="fill:var(--ink)">${pct(share)} · ${money(r.v)}</text>`;
-    svg += `<rect x="0" y="${y - 6}" width="${W}" height="${bh + 12}" fill="transparent" data-row="${i}"/>`;
-  });
-  svg += `</svg>`;
-  el.className = "chart";
-  el.innerHTML = `<div class="legend"><span><i class="tick"></i>Target (50 / 30 / 20)</span></div>${svg}`;
-  $$("rect[data-row]", el).forEach((hit) => {
-    const r = rows[+hit.dataset.row], share = t.income ? r.v / t.income : 0, diff = r.v - r.target * t.income;
-    const html = `<strong>${r.label}</strong><br>Actual <b>${money(r.v)}</b> (${pct(share, 1)})<br>Target <b>${money(r.target * t.income)}</b> (${pct(r.target)})<br>${diff >= 0 ? "Over" : "Under"} by <b>${money(Math.abs(diff))}</b>`;
-    hit.addEventListener("mousemove", (e) => showTip(html, e.clientX, e.clientY));
-    hit.addEventListener("mouseleave", hideTip);
-  });
-}
-function barPath(x, y, w, h, r) {
-  if (w <= 0) return "";
-  r = Math.min(r, w, h / 2);
-  return `M${x},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} H${x} Z`;
-}
-
 function renderCompoundChart() {
   const el = $("#compoundChart"), rate = 0.07, years = 40;
   const miguel = [], jasmine = [];
@@ -589,58 +558,350 @@ function renderCreditGauge() {
     <p class="small" style="margin:0">Card utilization: <strong>${pct(util)}</strong> of ${money(bs.cardLimit)} limit <span class="status ${util > 0.3 ? "bad" : util > 0.1 ? "warn" : "good"}">${util > 0.3 ? "High" : util > 0.1 ? "OK" : "Great"}</span></p>`;
 }
 
-// ---------------------------------------------------------------- overview
-const KIND_LABEL = { checking: "Checking", savings: "Savings", credit: "Credit card", loan: "Loan", investment: "Investment", retirement: "Retirement" };
-function renderAccountStrip() {
-  $("#syncLine").textContent = `${bank.accounts.length} linked accounts · updated ${shortDate(today)} · demo data`;
-  $("#accountStrip").innerHTML = bank.accounts.map((a) => {
-    const debt = a.kind === "credit" || a.kind === "loan";
-    const sub = a.kind === "credit" ? `${pct(a.balance / a.limit)} of ${money(a.limit)} limit · ${a.apr}% APR`
-      : a.kind === "loan" ? `${a.apr}% APR · ${money(a.minPayment)}/mo`
-      : a.apy ? `${a.apy}% APY${a.role === "emergency" ? " · emergency fund" : ""}` : a.external ? "From another institution" : "";
-    return `<div class="acct ${debt ? "debt" : ""}">
-      <span class="acct-kind">${KIND_LABEL[a.kind]}${a.external ? " · external" : ""}</span>
-      <span class="acct-name">${esc(a.name)} <span class="mask">••${a.mask}</span></span>
-      <span class="acct-bal">${debt ? "−" : ""}${cents(a.balance)}</span>
-      <span class="acct-sub">${sub}</span>
-    </div>`;
+// ---------------------------------------------------------------- overview (all visual)
+// Small SVG building blocks. Every mark carries a data-tip for the shared hover tooltip.
+const tipAttr = (html) => `data-tip="${esc(html)}"`;
+
+function donut(segs, { size = 150, thick = 20, center = "", label = "" } = {}) {
+  const total = segs.reduce((s, x) => s + x.value, 0) || 1, r = (size - thick) / 2, C = 2 * Math.PI * r, gap = segs.length > 1 ? 2 : 0;
+  let at = 0;
+  const arcs = segs.map((x) => {
+    const len = Math.max(0, (x.value / total) * C - gap);
+    const out = `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${x.color}" stroke-width="${thick}" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-at}" transform="rotate(-90 ${size / 2} ${size / 2})" ${tipAttr(x.tip)}/>`;
+    at += (x.value / total) * C;
+    return out;
   }).join("");
+  return `<div class="donut" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--grid)" stroke-width="${thick}"/>${arcs}</svg><div class="donut-center">${center}</div></div>`;
 }
 
-function renderUpcoming() {
+function ring(frac, { size = 96, thick = 10, color = "var(--blue)", center = "", tip = "", marks = [] } = {}) {
+  const r = (size - thick) / 2, C = 2 * Math.PI * r, f = Math.max(0, Math.min(1, frac));
+  const ticks = marks.map((m) => {
+    const a = m * 2 * Math.PI - Math.PI / 2, x1 = size / 2 + (r - thick / 2 - 2) * Math.cos(a), y1 = size / 2 + (r - thick / 2 - 2) * Math.sin(a), x2 = size / 2 + (r + thick / 2 + 2) * Math.cos(a), y2 = size / 2 + (r + thick / 2 + 2) * Math.sin(a);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--ink)" stroke-width="2"/>`;
+  }).join("");
+  return `<div class="donut" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}" role="img"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--grid)" stroke-width="${thick}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${thick}" stroke-linecap="round" stroke-dasharray="${f * C} ${C}" transform="rotate(-90 ${size / 2} ${size / 2})" ${tipAttr(tip)}/>${ticks}</svg><div class="donut-center">${center}</div></div>`;
+}
+
+const legend = (items) => `<div class="legend">${items.map((i) => `<span><i class="${i.cls || ""}" style="background:${i.color}"></i>${esc(i.label)}</span>`).join("")}</div>`;
+
+function ovNetWorth() {
+  const bs = balanceSheet();
+  $("#ovNetWorth").textContent = money(bs.net);
+  $("#syncLine").textContent = `${bank.accounts.length} linked accounts · updated ${shortDate(today)} · demo data`;
+  const sumKinds = (kinds) => bank.accounts.filter((a) => kinds.includes(a.kind)).reduce((s, a) => s + a.balance, 0);
+  const assets = [
+    { label: "Cash & savings", value: sumKinds(["checking", "savings"]), color: "var(--s-needs)" },
+    { label: "Investments & retirement", value: sumKinds(["investment", "retirement"]), color: "var(--s-savings)" },
+    { label: "Other (car, home)", value: sum(state.manualAssets, "value"), color: "var(--s-cash)" },
+  ].filter((x) => x.value > 0);
+  const debts = allDebts().filter((d) => num(d.balance) > 0).sort((a, b) => b.balance - a.balance)
+    .map((d, i) => ({ label: d.name.replace(/ ••\d+$/, ""), value: num(d.balance), color: `var(--debt-${Math.min(i, 3) + 1})`, apr: d.apr }));
+  const max = Math.max(bs.assets, bs.debts);
+  const bar = (title, total, segs) => `<div class="hbar-row"><span class="hbar-label">${title}<b>${money(total)}</b></span><div class="hbar" style="width:${(total / max) * 100}%">${segs.map((x) =>
+    `<span style="flex:${x.value};background:${x.color}" ${tipAttr(`<strong>${esc(x.label)}</strong><br><b>${money(x.value)}</b>${x.apr ? ` · ${x.apr}% APR` : ""}`)}></span>`).join("")}</div></div>`;
+  $("#ovBalance").innerHTML = bar("Own", bs.assets, assets) + bar("Owe", bs.debts, debts) +
+    legend([...assets.map((a) => ({ label: a.label, color: a.color })), { label: "Debts (darker = larger)", color: "var(--debt-1)" }]);
+}
+
+function ovCashflow() {
+  const months = [...MONTHS].reverse(), data = months.map((ym) => ({ ym, ...totals(ym) }));
+  const W = 560, H = 230, padL = 52, padB = 30, padT = 10, colW = (W - padL) / months.length, bw = Math.min(56, colW * 0.5);
+  const maxV = Math.max(...data.map((d) => Math.max(d.income, d.needs + d.wants + d.savings + d.unassigned))) * 1.08;
+  const step = Math.ceil(maxV / 4 / 500) * 500, maxY = step * 4;
+  const y = (v) => padT + (1 - v / maxY) * (H - padT - padB);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly income versus spending and saving">`;
+  for (let v = 0; v <= maxY; v += step) svg += `<line class="grid-line" x1="${padL}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text class="axis-label" x="${padL - 8}" y="${y(v) + 4}" text-anchor="end">${compactUsd.format(v)}</text>`;
+  data.forEach((d, i) => {
+    const cx = padL + colW * i + colW / 2, x0 = cx - bw / 2;
+    let base = 0;
+    [["needs", "var(--s-needs)", "Needs"], ["wants", "var(--s-wants)", "Wants"], ["savings", "var(--s-savings)", "Savings"], ["unassigned", "var(--muted)", "Uncategorized"]].forEach(([k, c, lbl], j, arr) => {
+      if (d[k] <= 0) return;
+      const top = y(base + d[k]), h = y(base) - top;
+      const isTop = !arr.slice(j + 1).some(([kk]) => d[kk] > 0);
+      svg += `<path d="${isTop ? barPathV(x0, top, bw, h - 2, 4) : `M${x0},${top} h${bw} v${Math.max(0, h - 2)} h${-bw} Z`}" fill="${c}" ${tipAttr(`<strong>${monthName(d.ym, "short")} · ${lbl}</strong><br><b>${money(d[k])}</b> (${d.income ? pct(d[k] / d.income) : "–"} of income)`)}/>`;
+      base += d[k];
+    });
+    svg += `<line x1="${x0 - 8}" x2="${x0 + bw + 8}" y1="${y(d.income)}" y2="${y(d.income)}" stroke="var(--ink)" stroke-width="2.5" ${tipAttr(`<strong>${monthName(d.ym, "short")} income</strong><br><b>${money(d.income)}</b><br>Left over <b>${money(d.left)}</b>`)}/>`;
+    svg += `<text class="axis-label" x="${cx}" y="${H - 10}" text-anchor="middle">${new Date(`${d.ym}-15T12:00:00`).toLocaleDateString("en-US", { month: "short" })}${d.ym === currentYM ? " (so far)" : ""}</text>`;
+  });
+  svg += `</svg>`;
+  $("#ovCashflow").className = "chart";
+  $("#ovCashflow").innerHTML = legend([{ label: "Needs", color: "var(--s-needs)" }, { label: "Wants", color: "var(--s-wants)" }, { label: "Savings", color: "var(--s-savings)" }, { label: "Income", color: "var(--ink)", cls: "line" }]) + svg;
+}
+function barPathV(x, y, w, h, r) {
+  if (h <= 0) return "";
+  r = Math.min(r, h, w / 2);
+  return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`;
+}
+
+function ovSplit() {
+  const t = totals(LAST_FULL);
+  $("#ovSplitLabel").textContent = monthName(LAST_FULL, "short");
+  const segs = [
+    { k: "Needs", v: t.needs, target: 0.5, color: "var(--s-needs)" },
+    { k: "Wants", v: t.wants, target: 0.3, color: "var(--s-wants)" },
+    { k: "Savings", v: t.savings, target: 0.2, color: "var(--s-savings)" },
+  ];
+  const d = donut(segs.map((s) => ({ value: s.v, color: s.color, tip: `<strong>${s.k}</strong><br><b>${money(s.v)}</b> · ${pct(s.v / t.income)} (target ${pct(s.target)})` })),
+    { size: 150, thick: 22, label: "Needs, wants and savings share of income", center: `<b>${pct(t.savings / t.income)}</b><span>saved</span>` });
+  $("#ovSplit").innerHTML = `<div class="donut-wrap">${d}<ul class="split-list">${segs.map((s) => {
+    const share = s.v / t.income, off = s.k === "Savings" ? share < s.target - 0.01 : share > s.target + 0.01;
+    return `<li><i style="background:${s.color}"></i><span>${s.k}</span><b>${pct(share)}</b><small class="${off ? "status warn" : "status good"}">${off ? (s.k === "Savings" ? "below" : "above") : (s.k === "Savings" ? "meets" : "within")} ${pct(s.target)}</small></li>`;
+  }).join("")}</ul></div>`;
+}
+
+function ovSpend() {
+  $("#ovSpendLabel").textContent = monthName(LAST_FULL, "short");
+  const cats = monthCategories(LAST_FULL).filter((c) => ["needs", "wants"].includes(c.bucket)).slice(0, 7);
+  const max = Math.max(1, ...cats.map((c) => c.amount));
+  $("#ovSpend").innerHTML = `<ul class="spark-bars">${cats.map((c) => `<li ${tipAttr(`<strong>${CATS[c.cat].label}</strong><br><b>${money(c.amount)}</b> · ${c.count} transaction${c.count > 1 ? "s" : ""}`)}>
+    <span class="lbl">${CATS[c.cat].label}</span><span class="track"><span style="width:${(c.amount / max) * 100}%;background:${c.bucket === "needs" ? "var(--s-needs)" : "var(--s-wants)"}"></span></span><span class="amt">${money(c.amount)}</span></li>`).join("")}</ul>` +
+    legend([{ label: "Need", color: "var(--s-needs)" }, { label: "Want", color: "var(--s-wants)" }]);
+}
+
+function ovEmergency() {
+  const t = totals(LAST_FULL), bs = balanceSheet(), months = t.needs ? bs.emergency / t.needs : 0;
+  const color = months >= 3 ? "var(--green)" : months >= 1 ? "var(--amber)" : "var(--red)";
+  $("#ovEmergency").innerHTML = `<div class="ring-wrap">${ring(months / 6, { size: 140, thick: 14, color, marks: [0.5], center: `<b>${months.toFixed(1)}</b><span>of 6 months</span>`, tip: `<strong>Emergency fund</strong><br><b>${money(bs.emergency)}</b> covers ${months.toFixed(1)} months of needs (${money(t.needs)}/mo)` })}
+    <p class="small center">${money(bs.emergency)} saved · <b>${money(Math.max(0, t.needs * 3 - bs.emergency))}</b> to 3 months</p></div>`;
+}
+
+function ovCredit() {
+  const score = bank.creditScore, bs = balanceSheet(), util = bs.cardLimit ? bs.cardDebt / bs.cardLimit : 0;
+  const W = 200, H = 120, cx = 100, cy = 105, r = 80, th = 16;
+  const ang = (s) => Math.PI * (1 - (s - 300) / 550);
+  const arc = (s0, s1, color) => {
+    const a0 = ang(s0), a1 = ang(s1);
+    return `<path d="M${cx + r * Math.cos(a0)},${cy - r * Math.sin(a0)} A${r},${r} 0 0 1 ${cx + r * Math.cos(a1)},${cy - r * Math.sin(a1)}" fill="none" stroke="${color}" stroke-width="${th}" ${tipAttr(`${s0}–${s1}`)}/>`;
+  };
+  const a = ang(score), nx = cx + (r - 22) * Math.cos(a), ny = cy - (r - 22) * Math.sin(a);
+  const band = score >= 740 ? "Very good" : score >= 700 ? "Good" : score >= 600 ? "Decent" : "Poor";
+  $("#ovCredit").innerHTML = `<div class="gauge"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Credit score ${score}">
+      ${arc(300, 598, "var(--gauge-bad)")}${arc(602, 698, "var(--gauge-mid)")}${arc(702, 850, "var(--gauge-good)")}
+      <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="5" fill="var(--ink)"/>
+    </svg><div class="gauge-num"><b>${score}</b><span>${band}</span></div></div>
+    <div class="meter" ${tipAttr(`<strong>Card utilization</strong><br><b>${pct(util)}</b> of ${money(bs.cardLimit)} limit · aim under 30%`)}>
+      <span class="meter-lbl">Card utilization <b>${pct(util)}</b></span>
+      <span class="meter-track"><span style="width:${Math.min(100, util * 100)}%;background:${util > 0.3 ? "var(--red)" : util > 0.1 ? "var(--amber)" : "var(--green)"}"></span><i style="left:30%"></i></span>
+    </div>`;
+}
+
+function ovRunway() {
   const payday = nextPayday(), bs = balanceSheet();
-  const list = recurring().filter((r) => r.nextDate < payday);
-  $("#paydayLabel").textContent = `Next paycheck ${shortDate(payday)}`;
-  const fromChk = list.filter((r) => r.account === "chk").reduce((s, r) => s + r.amount, 0);
-  $("#upcomingList").innerHTML = list.map((r) => `
-    <li><span class="date">${shortDate(r.nextDate)}</span>
-      <span class="who">${esc(titleCase(r.merchant))}<small>${r.account === "card" ? "Credit card" : "Checking"}${r.priceUp ? ` · <span class="status warn">price up</span>` : ""}</small></span>
-      <span class="amt">${cents(r.amount)}</span></li>`).join("") +
-    `<li class="proj"><span></span><span class="who">Checking after these bills</span><span class="amt"><span class="status ${bs.checking - fromChk < 100 ? "bad" : "good"}">${cents(bs.checking - fromChk)}</span></span></li>`;
+  const end = new Date(payday); end.setDate(end.getDate() + 2);
+  const days = Math.round((end - today) / 86400000);
+  const bills = recurring().filter((r) => r.account === "chk" && r.nextDate <= end);
+  const payAmt = bank.transactions.find((t) => catOf(t) === "paycheck")?.amount || 0;
+  const events = [...bills.map((b) => ({ d: Math.round((b.nextDate - today) / 86400000), amt: -b.amount, label: titleCase(b.merchant) })), { d: Math.round((payday - today) / 86400000), amt: payAmt, label: "Paycheck" }].sort((a, b) => a.d - b.d);
+  let bal = bs.checking;
+  const pts = [[0, bal]];
+  events.forEach((e) => { pts.push([e.d, bal]); bal += e.amt; pts.push([e.d, bal]); e.after = bal; });
+  pts.push([days, bal]);
+  const W = 760, H = 200, padL = 52, padR = 16, padT = 26, padB = 26;
+  const maxV = Math.max(...pts.map((p) => p[1])) * 1.15, step = Math.ceil(maxV / 3 / 250) * 250, maxY = step * 3;
+  const x = (d) => padL + (d / days) * (W - padL - padR), y = (v) => padT + (1 - Math.max(0, v) / maxY) * (H - padT - padB);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected checking balance until payday">`;
+  for (let v = 0; v <= maxY; v += step) svg += `<line class="grid-line" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text class="axis-label" x="${padL - 8}" y="${y(v) + 4}" text-anchor="end">${compactUsd.format(v)}</text>`;
+  svg += `<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join("")} L${x(days)},${y(0)} L${x(0)},${y(0)} Z" fill="var(--s-needs)" opacity=".12"/>`;
+  svg += `<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join("")}" fill="none" stroke="var(--s-needs)" stroke-width="2"/>`;
+  events.forEach((e, i) => {
+    const income = e.amt > 0;
+    svg += `<line x1="${x(e.d)}" x2="${x(e.d)}" y1="${padT - 6}" y2="${H - padB}" stroke="${income ? "var(--green)" : "var(--line)"}" stroke-dasharray="${income ? "0" : "3 3"}"/>`;
+    svg += `<circle cx="${x(e.d)}" cy="${y(e.after)}" r="5" fill="${income ? "var(--green)" : "var(--s-needs)"}" stroke="var(--surface)" stroke-width="2" ${tipAttr(`<strong>${esc(e.label)}</strong> · ${shortDate(new Date(today.getTime() + e.d * 86400000))}<br>${income ? "+" : "−"}${cents(Math.abs(e.amt))} · balance after <b>${cents(e.after)}</b>`)}/>`;
+    svg += `<text x="${x(e.d)}" y="${padT - 10 - (i % 2) * 0}" text-anchor="middle" class="ev-label" style="fill:${income ? "var(--green)" : "var(--ink-2)"}">${income ? "Payday" : `−${money(Math.abs(e.amt))}`}</text>`;
+  });
+  for (let d = 0; d <= days; d += Math.max(1, Math.round(days / 6))) svg += `<text class="axis-label" x="${x(d)}" y="${H - 6}" text-anchor="middle">${d === 0 ? "Today" : shortDate(new Date(today.getTime() + d * 86400000))}</text>`;
+  svg += `</svg>`;
+  const low = Math.min(...pts.map((p) => p[1]));
+  $("#ovRunwayLabel").innerHTML = `Lowest point <b class="status ${low < 100 ? "bad" : "good"}">${money(low)}</b> · payday ${shortDate(payday)}`;
+  $("#ovRunway").className = "chart";
+  $("#ovRunway").innerHTML = svg;
+}
+
+function ovInvest() {
+  const p = portfolio(), m = match401k();
+  const segs = Object.keys(CLASSES).filter((k) => p.byClass[k] > 0).map((k) => ({ value: p.byClass[k], color: CLASSES[k].color, tip: `<strong>${CLASSES[k].label}</strong><br><b>${money(p.byClass[k])}</b> · ${pct(p.byClass[k] / p.total)}` }));
+  const d = donut(segs, { size: 150, thick: 16, label: "Investment allocation", center: `<b>${compactUsd.format(p.total)}</b><span>invested</span>` });
+  const meter = m ? `<div class="meter" ${tipAttr(`<strong>401(k) contribution</strong><br>You put in <b>${m.employeePct}%</b>; employer matches up to <b>${m.matchUpToPct}%</b>${m.missed > 0 ? `<br>Missing <b>${money(m.missed)}/yr</b>` : ""}`)}>
+      <span class="meter-lbl">401(k) match <b>${m.employeePct}% of ${m.matchUpToPct}%</b></span>
+      <span class="meter-track"><span style="width:${(m.employeePct / (m.matchUpToPct + 1)) * 100}%;background:${m.employeePct >= m.matchUpToPct ? "var(--green)" : "var(--amber)"}"></span><i style="left:${(m.matchUpToPct / (m.matchUpToPct + 1)) * 100}%"></i></span>
+    </div>` : "";
+  $("#ovInvest").innerHTML = `<div class="ring-wrap">${d}</div>${legend(Object.keys(CLASSES).filter((k) => p.byClass[k] > 0).map((k) => ({ label: CLASSES[k].label, color: CLASSES[k].color })))}${meter}`;
+}
+
+function ovGoals() {
+  const t = totals(LAST_FULL);
+  $("#ovGoals").innerHTML = state.goals.map((g) => {
+    const target = goalTarget(g), saved = goalSaved(g), f = saved / Math.max(1, target);
+    const h = horizonOf(num(g.years)), need = requiredMonthly(target, saved, num(g.years), g.kind === "emergency" ? 0 : SAVINGS_GROWTH[h]);
+    const tight = t.savings && need / t.savings > 0.6;
+    return `<div class="goal-ring">${ring(f, { size: 92, thick: 9, color: f >= 1 ? "var(--green)" : "var(--blue)", center: `<b>${pct(Math.min(1, f))}</b>`, tip: `<strong>${esc(g.name)}</strong><br>${money(saved)} of ${money(target)}<br>Needs <b>${money(need)}/mo</b> for ${fmtYears(num(g.years))}` })}
+      <span class="goal-name">${esc(g.name)}</span><span class="goal-sub">${money(target)} · ${fmtYears(num(g.years))}</span><span class="goal-sub ${tight ? "status warn" : ""}">${money(need)}/mo</span></div>`;
+  }).join("") || `<p class="muted">No goals yet. Add one on the Goals tab.</p>`;
+}
+
+function ovDebt() {
+  const plan = payoffPlan(), debts = allDebts().filter((d) => d.type !== "mortgage" && num(d.balance) > 0).sort((a, b) => b.apr - a.apr);
+  $("#ovDebtLabel").textContent = plan && !plan.stuck ? `Debt-free in ${fmtMonths(plan.months)} (${state.payoffMethod})` : "";
+  const max = Math.max(1, ...debts.map((d) => num(d.balance)));
+  const months = plan ? Math.max(...plan.paidOff.map((p) => p.month), 1) : 1;
+  $("#ovDebt").innerHTML = `<ul class="debt-bars">${debts.map((d) => {
+    const off = plan?.paidOff.find((p) => p.id === d.id)?.month;
+    return `<li ${tipAttr(`<strong>${esc(d.name)}</strong><br><b>${money(d.balance)}</b> at ${d.apr}% APR${off ? `<br>Paid off in month ${off}` : ""}`)}>
+      <span class="lbl">${esc(d.name.replace(/ ••\d+$/, ""))}<small>${d.apr}% APR</small></span>
+      <span class="track"><span style="width:${(num(d.balance) / max) * 100}%;background:${d.apr >= 10 ? "var(--red)" : "var(--debt-2)"}"></span></span>
+      <span class="amt">${money(d.balance)}</span>
+      <span class="timeline"><span style="width:${off ? (off / months) * 100 : 100}%"></span><em>${off ? fmtMonths(off) : "–"}</em></span>
+    </li>`;
+  }).join("")}</ul><p class="muted small">Top bar: balance (red = 10%+ APR). Thin bar: when it's paid off on your current plan.</p>`;
+}
+
+function ovActions() {
+  const t = totals(LAST_FULL), bs = balanceSheet(), m = match401k(), list = [];
+  if (m && m.missed > 0) list.push({ big: `${money(m.missed)}`, unit: "/yr", label: "401(k) match you're not collecting", tab: "invest", tone: "bad" });
+  const int = interestPaid(3);
+  if (int > 0) list.push({ big: money(int * 4), unit: "/yr", label: "card interest at your current pace", tab: "networth", tone: "bad" });
+  if (t.needs * 3 > bs.emergency) list.push({ big: money(t.needs * 3 - bs.emergency), unit: "", label: "to reach a 3-month emergency fund", tab: "goals", tone: "warn" });
+  if (t.income && t.needs > t.income * 0.5) list.push({ big: money(t.needs - t.income * 0.5), unit: "/mo", label: "needs above the 50% guideline", tab: "budget", tone: "warn" });
+  const subs = recurring().filter((r) => r.isSub);
+  if (subs.length) list.push({ big: money(subs.reduce((s, r) => s + r.amount, 0) * 12), unit: "/yr", label: `on ${subs.length} subscriptions${subs.some((r) => r.priceUp) ? " (one went up)" : ""}`, tab: "activity", tone: "" });
+  $("#ovActions").innerHTML = list.slice(0, 4).map((a) => `<button class="action-tile ${a.tone}" data-goto-tab="${a.tab}"><span class="action-big">${a.big}<small>${a.unit}</small></span><span class="action-lbl">${esc(a.label)}</span></button>`).join("");
 }
 
 function renderOverview() {
-  const t = totals(LAST_FULL), bs = balanceSheet();
-  $("#heroName").textContent = state.name;
-  $("#kpiNetWorth").textContent = money(bs.net);
-  $("#kpiNetWorthSub").textContent = `${money(bs.assets)} assets − ${money(bs.debts)} liabilities`;
-  $("#kpiIncomeLabel").textContent = `Take-home income, ${monthName(LAST_FULL, "short")}`;
-  $("#kpiIncome").textContent = money(t.income);
-  $("#kpiIncomeSub").textContent = "Paychecks and side income deposited";
-  $("#kpiSavings").textContent = money(t.savings);
-  $("#kpiSavingsSub").innerHTML = `${t.income ? pct(t.savings / t.income, 1) : "0%"} of income · target 20%`;
-  const months = t.needs ? bs.emergency / t.needs : 0;
-  $("#kpiEmergency").textContent = money(bs.emergency);
-  $("#kpiEmergencySub").innerHTML = `<span class="status ${months >= 3 ? "good" : months >= 1 ? "warn" : "bad"}">${months.toFixed(1)} months of needs</span> · target 3–6`;
-  $("#kpiDebt").textContent = money(bs.debts);
-  const plan = payoffPlan();
-  $("#kpiDebtSub").textContent = plan && !plan.stuck ? `Non-mortgage debt gone in ${fmtMonths(plan.months)}` : "Raise payments to finish";
-  $("#kpiCredit").textContent = bank.creditScore;
-  $("#kpiCreditSub").textContent = `Utilization ${pct(bs.cardLimit ? bs.cardDebt / bs.cardLimit : 0)} · aim under 30%`;
-  renderAccountStrip();
-  renderUpcoming();
-  renderSplitChart();
+  renderBudgetCheck(); ovNetWorth(); ovCashflow(); ovSplit(); ovSpend(); ovEmergency(); ovCredit(); ovRunway(); ovInvest(); ovGoals(); ovDebt(); ovActions();
 }
+
+// Shared hover tooltip for any element with data-tip.
+document.addEventListener("mousemove", (e) => {
+  const el = e.target.closest?.("[data-tip]");
+  if (el) showTip(el.dataset.tip, e.clientX, e.clientY);
+  else if (!e.target.closest?.(".chart svg rect, [data-row], [data-alloc]")) hideTip();
+});
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-goto-tab]"); if (b) selectTab(b.dataset.gotoTab); });
+
+// ---------------------------------------------------------------- budget limits & flags
+const DEFAULT_LIMITS = {
+  housing: 1100, utilities: 140, phone_internet: 120, transport: 180, loan_payment: 450, groceries: 250, health: 50, fees_interest: 0,
+  dining: 150, entertainment: 60, subscriptions: 40, shopping: 120, fitness: 60,
+};
+// Bills that land once a month in one lump: judge them on the full amount, not on daily pace.
+const LUMPY = ["housing", "loan_payment", "phone_internet", "utilities", "fitness", "subscriptions", "fees_interest"];
+const limitOf = (cat) => (state.limits?.[cat] ?? DEFAULT_LIMITS[cat]);
+
+function budgetStatus(ym) {
+  const days = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
+  const frac = ym === currentYM ? today.getDate() / days : 1;
+  const spent = Object.fromEntries(monthCategories(ym).map((c) => [c.cat, c.amount]));
+  return Object.keys(CATS).filter((k) => ["needs", "wants"].includes(CATS[k].bucket) && limitOf(k) != null && (limitOf(k) > 0 || (spent[k] || 0) > 0))
+    .map((k) => {
+      const s = spent[k] || 0, lim = limitOf(k), expected = LUMPY.includes(k) ? lim : lim * frac;
+      let status = "ok";
+      if (s > lim + 0.5) status = "over";
+      else if (frac < 1 && !LUMPY.includes(k) && s >= 20 && s > expected * 1.2) status = "pace";
+      const projected = frac < 1 && !LUMPY.includes(k) ? s / frac : s;
+      return { cat: k, label: CATS[k].label, bucket: CATS[k].bucket, spent: s, limit: lim, expected, frac, status, over: s - lim, projected };
+    })
+    .sort((a, b) => ({ over: 0, pace: 1, ok: 2 }[a.status] - { over: 0, pace: 1, ok: 2 }[b.status]) || (b.over - a.over));
+}
+function budgetFlags(ym) {
+  const st = budgetStatus(ym), t = totals(ym), frac = st[0]?.frac ?? 1, flags = [];
+  st.filter((x) => x.status === "over").forEach((x) => flags.push({ level: "over", cat: x.cat, text: x.limit === 0 ? `${x.label}: you paid ${money(x.spent)} and the goal is $0.` : `You're ${money(x.over)} over on ${x.label.toLowerCase()} (${money(x.spent)} of ${money(x.limit)}).` }));
+  st.filter((x) => x.status === "pace").forEach((x) => flags.push({ level: "pace", cat: x.cat, text: `${x.label} is on pace for about ${money(x.projected)}, over your ${money(x.limit)} limit.` }));
+  if (frac === 1 && t.income) {
+    if (t.wants > t.income * 0.3) flags.push({ level: "over", text: `Wants were ${pct(t.wants / t.income)} of income, above 30%.` });
+    if (t.needs > t.income * 0.5) flags.push({ level: "pace", text: `Needs were ${pct(t.needs / t.income)} of income, above the 50% guideline.` });
+  }
+  return { st, flags, mood: flags.some((f) => f.level === "over") ? "alert" : flags.length ? "worried" : "happy" };
+}
+
+// Mascot: Penny the piggy bank. Mood sets the face and the animation.
+function mascotSVG(mood, size = 120) {
+  const eyes = mood === "happy"
+    ? `<path d="M40 52 q5 -6 10 0" class="m-stroke"/><path d="M70 52 q5 -6 10 0" class="m-stroke"/>`
+    : `<g class="m-eyes"><circle cx="45" cy="52" r="${mood === "alert" ? 5.5 : 4.5}" class="m-ink"/><circle cx="75" cy="52" r="${mood === "alert" ? 5.5 : 4.5}" class="m-ink"/><circle cx="46.5" cy="50.5" r="1.5" fill="#fff"/><circle cx="76.5" cy="50.5" r="1.5" fill="#fff"/></g>`;
+  const brows = mood === "worried" ? `<path d="M38 45 l12 -5" class="m-stroke"/><path d="M82 45 l-12 -5" class="m-stroke"/>` : mood === "alert" ? `<path d="M38 41 q6 -6 12 -1" class="m-stroke"/><path d="M82 41 q-6 -6 -12 -1" class="m-stroke"/>` : "";
+  const mouth = mood === "happy" ? `<path d="M52 82 q8 8 16 0" class="m-stroke"/>` : mood === "worried" ? `<path d="M52 85 q8 -6 16 0" class="m-stroke"/>` : `<ellipse cx="60" cy="85" rx="5" ry="6" class="m-ink"/>`;
+  const extra = mood === "worried" ? `<path class="m-sweat" d="M88 34 q4 7 0 10 q-4 -3 0 -10z" fill="#7cc4f2"/>`
+    : mood === "alert" ? `<g class="m-bang"><circle cx="100" cy="18" r="12" fill="var(--red)"/><text x="100" y="24" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">!</text></g>`
+    : `<g class="m-spark"><path d="M100 14 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z" fill="#f6c343"/></g>`;
+  return `<svg class="mascot ${mood}" viewBox="0 0 120 120" width="${size}" height="${size}" role="img" aria-label="Penny the piggy bank looks ${mood === "happy" ? "happy" : mood === "worried" ? "worried" : "alarmed"}">
+    <g class="m-body">
+      <path d="M33 30 l6 -16 12 12z" class="m-pink m-ear"/><path d="M87 30 l-6 -16 -12 12z" class="m-pink m-ear"/>
+      <ellipse cx="60" cy="64" rx="42" ry="38" class="m-pink"/>
+      <rect x="50" y="27" width="20" height="4" rx="2" class="m-slot"/>
+      <ellipse cx="60" cy="70" rx="14" ry="10" class="m-snout"/><circle cx="55" cy="70" r="2.6" class="m-ink"/><circle cx="65" cy="70" r="2.6" class="m-ink"/>
+      ${eyes}${brows}${mouth}
+      <ellipse cx="30" cy="70" rx="6" ry="4" fill="#f7a1b5" opacity=".7"/><ellipse cx="90" cy="70" rx="6" ry="4" fill="#f7a1b5" opacity=".7"/>
+      <rect x="36" y="96" width="12" height="12" rx="4" class="m-pink"/><rect x="72" y="96" width="12" height="12" rx="4" class="m-pink"/>
+    </g>${extra}</svg>`;
+}
+
+let bcIndex = 0;
+function renderBudgetCheck() {
+  const which = state.bcMonth || "current", ym = which === "current" ? currentYM : LAST_FULL;
+  $("#bcLastBtn").textContent = monthName(LAST_FULL, "long").split(" ")[0];
+  $$("[data-bc]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.bc === which)));
+  const { st, flags, mood } = budgetFlags(ym);
+  bcIndex = flags.length ? bcIndex % flags.length : 0;
+  $("#bcMascot").innerHTML = mascotSVG(mood, 132);
+  $("#budgetCheck").dataset.mood = mood;
+  const f = flags[bcIndex];
+  $("#bcBubble").innerHTML = f
+    ? `<strong>${f.level === "over" ? "Over budget" : "Heads up"}</strong> ${esc(f.text)}${flags.length > 1 ? ` <span class="bubble-count">${bcIndex + 1} of ${flags.length} · tap Penny for the next</span>` : ""}`
+    : `<strong>Nice!</strong> Every category is within its limit${which === "current" ? " so far this month" : ` in ${monthName(LAST_FULL, "long")}`}.`;
+  $("#bcBars").innerHTML = st.filter((x) => x.spent > 0 || x.status !== "ok").map((x) => {
+    const scale = Math.max(x.limit, x.spent, 1) * 1.05;
+    const color = x.status === "over" ? "var(--red)" : x.status === "pace" ? "var(--amber)" : x.bucket === "needs" ? "var(--s-needs)" : "var(--s-wants)";
+    return `<li class="${x.status} ${f && f.cat === x.cat ? "focus" : ""}" ${tipAttr(`<strong>${esc(x.label)}</strong><br>Spent <b>${money(x.spent)}</b> of ${money(x.limit)}${x.frac < 1 && !LUMPY.includes(x.cat) ? `<br>Expected by today: ${money(x.expected)}` : ""}${x.status === "over" ? `<br>Over by <b>${money(x.over)}</b>` : x.status === "pace" ? `<br>On pace for ${money(x.projected)}` : ""}`)}>
+      <span class="lbl">${esc(x.label)}</span>
+      <span class="track"><span style="width:${(x.spent / scale) * 100}%;background:${color}"></span><i class="lim" style="left:${(x.limit / scale) * 100}%"></i>${x.frac < 1 && !LUMPY.includes(x.cat) ? `<i class="pace" style="left:${(x.expected / scale) * 100}%"></i>` : ""}</span>
+      <span class="amt">${money(x.spent)} <small>/ ${money(x.limit)}</small></span>
+      <span class="flag">${x.status === "over" ? "Over" : x.status === "pace" ? "On pace to go over" : ""}</span></li>`;
+  }).join("");
+}
+$("#tab-overview").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-bc]");
+  if (b) { state.bcMonth = b.dataset.bc; bcIndex = 0; save(); renderBudgetCheck(); return; }
+  if (e.target.closest("#bcMascot")) { bcIndex++; renderBudgetCheck(); const m = $("#bcMascot svg"); m?.classList.remove("poke"); void m?.getBoundingClientRect(); m?.classList.add("poke"); }
+});
+
+function renderLimits() {
+  const cur = Object.fromEntries(budgetStatus(currentYM).map((x) => [x.cat, x]));
+  const last = Object.fromEntries(budgetStatus(LAST_FULL).map((x) => [x.cat, x]));
+  const cats = Object.keys(CATS).filter((k) => ["needs", "wants"].includes(CATS[k].bucket));
+  const cell = (x) => !x ? `<span class="muted">–</span>` : `<span class="mini-track"><span style="width:${Math.min(100, (x.spent / Math.max(1, x.limit)) * 100)}%;background:${x.status === "over" ? "var(--red)" : x.status === "pace" ? "var(--amber)" : "var(--green)"}"></span></span> ${money(x.spent)}${x.status === "over" ? ` <span class="status bad">over ${money(x.over)}</span>` : x.status === "pace" ? ` <span class="status warn">on pace to go over</span>` : ""}`;
+  $("#limitsTable").innerHTML = `<thead><tr><th>Category</th><th>Type</th><th class="num">Monthly limit</th><th>${monthName(currentYM, "short")} so far</th><th>${monthName(LAST_FULL, "short")}</th></tr></thead><tbody>` +
+    cats.map((k) => `<tr><td>${CATS[k].label}</td><td><span class="bucket b-${CATS[k].bucket}">${CATS[k].bucket === "needs" ? "Need" : "Want"}</span></td>
+      <td class="num"><input type="number" min="0" step="10" data-limit="${k}" value="${limitOf(k)}" aria-label="Monthly limit for ${CATS[k].label}" style="text-align:right;max-width:110px"/></td>
+      <td>${cell(cur[k])}</td><td>${cell(last[k])}</td></tr>`).join("") + `</tbody>`;
+}
+$("#tab-budget").addEventListener("change", (e) => {
+  const k = e.target.dataset.limit;
+  if (!k) return;
+  state.limits = { ...(state.limits || {}), [k]: num(e.target.value) };
+  renderLimits(); refresh();
+});
+
+// Penny pops up once per visit when something is over budget.
+function maybeShowMascotToast() {
+  let shown = false;
+  try { shown = sessionStorage.getItem("learnfi.toast") === "1"; } catch { /* ignore */ }
+  if (shown) return;
+  const cur = budgetFlags(currentYM), last = budgetFlags(LAST_FULL);
+  const pick = cur.flags.find((f) => f.level === "over") || cur.flags[0] || last.flags.find((f) => f.level === "over");
+  if (!pick) return;
+  $("#toastMascot").innerHTML = mascotSVG(pick.level === "over" ? "alert" : "worried", 88);
+  $("#toastText").textContent = (cur.flags.includes(pick) ? "" : `In ${monthName(LAST_FULL, "long")}: `) + pick.text;
+  $("#mascotToast").hidden = false;
+  try { sessionStorage.setItem("learnfi.toast", "1"); } catch { /* ignore */ }
+  state.bcMonth = cur.flags.includes(pick) ? "current" : "last";
+}
+$("#toastClose").addEventListener("click", () => { $("#mascotToast").hidden = true; });
+$("#toastGo").addEventListener("click", () => { $("#mascotToast").hidden = true; selectTab("overview"); renderBudgetCheck(); $("#budgetCheck").scrollIntoView({ behavior: "smooth", block: "center" }); });
+
+const KIND_LABEL = { checking: "Checking", savings: "Savings", credit: "Credit card", loan: "Loan", investment: "Investment", retirement: "Retirement" };
 
 // ---------------------------------------------------------------- activity
 function monthOptions(sel, value, includeAll) {
@@ -687,20 +948,22 @@ function renderActivity() {
   const cats = monthCategories(ym).filter((c) => ["needs", "wants", "unassigned"].includes(c.bucket));
   const max = Math.max(1, ...cats.map((c) => c.amount));
   $("#catBars").innerHTML = cats.map((c) => `<li><span class="lbl">${CATS[c.cat].label}</span>
-    <span class="track"><span style="width:${(c.amount / max * 100).toFixed(1)}%;background:${c.bucket === "needs" ? "var(--s-needs)" : c.bucket === "wants" ? "var(--s-wants)" : "var(--muted)"}"></span></span>
+    <span class="track"><span style="width:${(c.amount / max * 100).toFixed(1)}%;background:${limitOf(c.cat) != null && c.amount > limitOf(c.cat) + 0.5 ? "var(--red)" : c.bucket === "needs" ? "var(--s-needs)" : c.bucket === "wants" ? "var(--s-wants)" : "var(--muted)"}"></span>${limitOf(c.cat) ? `<i class="lim" style="left:${Math.min(100, (limitOf(c.cat) / max) * 100)}%"></i>` : ""}</span>
     <span class="amt">${money(c.amount)}</span></li>`).join("") +
-    `<li class="cat-legend"><span><i style="background:var(--s-needs)"></i>Need</span><span><i style="background:var(--s-wants)"></i>Want</span></li>`;
+    `<li class="cat-legend"><span><i style="background:var(--s-needs)"></i>Need</span><span><i style="background:var(--s-wants)"></i>Want</span><span><i style="background:var(--red)"></i>Over limit</span><span><i class="tick-key"></i>Limit</span></li>`;
 }
 
 // ---------------------------------------------------------------- budget sheet (auto from transactions + manual lines)
 function renderBudget() {
+  renderLimits();
   const ym = state.budgetMonth || LAST_FULL;
   monthOptions($("#budgetMonth"), ym, false);
   const cats = monthCategories(ym), man = (state.manual[ym] ||= { income: [], needs: [], wants: [], savings: [] });
+  const flags = Object.fromEntries(budgetStatus(ym).map((x) => [x.cat, x]));
   GROUPS.forEach((g) => {
     const autoRows = cats.filter((c) => c.bucket === g).map((c) => `
-      <tr class="auto-row" data-cat="${c.cat}" tabindex="0" title="Show these transactions">
-        <td><span class="cell-text">${CATS[c.cat].label}<span class="chip-auto">auto · ${c.count}</span></span></td>
+      <tr class="auto-row ${flags[c.cat]?.status === "over" ? "over-row" : flags[c.cat]?.status === "pace" ? "pace-row" : ""}" data-cat="${c.cat}" tabindex="0" title="Show these transactions">
+        <td><span class="cell-text">${CATS[c.cat].label}<span class="chip-auto">auto · ${c.count}</span>${flags[c.cat]?.status === "over" ? `<span class="chip-over">over by ${money(flags[c.cat].over)}</span>` : flags[c.cat]?.status === "pace" ? `<span class="chip-pace">on pace to go over</span>` : ""}</span></td>
         <td class="num"><span class="cell-text">${cents(c.amount)}</span></td><td></td>
       </tr>`).join("");
     const manualRows = (man[g] || []).map((l) => `
@@ -819,8 +1082,6 @@ function updateHome() {
       </tbody>
     </table>
     <p class="verdict">${buyWins ? "Buying" : "Renting"} is cheaper by ${money(Math.abs(m.buyCost - m.rentCost))} in year one.</p>`;
-  $("#kpiMortgage").textContent = money(m.monthlyAll);
-  $("#kpiMortgageSub").textContent = `${money(num(state.home.price))} home · ${num(state.home.rate)}% · ${num(state.home.term)} yrs`;
 }
 
 // ---------------------------------------------------------------- goals
@@ -1151,7 +1412,6 @@ function refresh() {
   renderGoals();
   renderInvest();
   renderAdvisors();
-  renderAdvice($("#topAdvice"), advice.filter((a) => a.priority !== "good"), 4);
   renderAdvice($("#budgetAdvice"), advice.filter((a) => ["Budget", "Savings", "Emergency fund", "Cash flow", "Trend"].includes(a.tag)));
   const h = state.horizon;
   renderAdvice($("#allAdvice"), h === "all" ? advice : advice.filter((a) => a.horizons.includes(h)));
@@ -1388,6 +1648,9 @@ function financialContext() {
       annual_fees: Math.round(pf.fees), monthly_investing: Math.round(mi.ira + mi.k401),
       k401: mt ? { employee_pct: mt.employeePct, match: `${mt.matchRate * 100}% up to ${mt.matchUpToPct}%`, missed_match_per_year: Math.round(mt.missed), gross_salary: mt.salary } : null,
     }; })(),
+    budget_limits: Object.fromEntries(Object.keys(DEFAULT_LIMITS).map((k) => [CATS[k].label, limitOf(k)])),
+    over_budget_this_month: budgetFlags(currentYM).flags.map((f) => f.text),
+    over_budget_last_month: budgetFlags(LAST_FULL).flags.map((f) => f.text),
     advisor_suggestion: advisorFit().rec.join(": "),
     advisor_booking: state.booking ? { advisor: ADVISORS.find((a) => a.id === state.booking.advisor)?.name, topic: TOPICS[state.booking.topic], when: state.booking.slot } : null,
     advisor_flags: advise().filter((a) => a.priority === "high" || a.priority === "med").map((a) => a.title),
@@ -1509,4 +1772,6 @@ function renderAll() {
   refresh();
 }
 renderAll();
+maybeShowMascotToast();
+renderBudgetCheck();
 try { const t = localStorage.getItem("learnfi.tab"); if (t && $(`#tab-${t}`)) selectTab(t); } catch { /* ignore */ }
